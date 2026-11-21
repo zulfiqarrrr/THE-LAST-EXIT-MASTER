@@ -1,0 +1,78 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Warden viewer</title>
+    <style>
+      html, body { margin: 0; height: 100%; background: #101014; overflow: hidden; }
+      canvas { display: block; width: 100vw; height: 100vh; }
+      #info { position: fixed; left: 8px; top: 8px; color: #9a9aa3; font: 12px/1.4 monospace; }
+    </style>
+  </head>
+  <body>
+    <div id="info">loading Warden…</div>
+    <script type="module">
+      import * as THREE from 'three';
+      import { loadWardenModel, WardenRig, MODEL_SCALE, FACE_HEIGHT } from '/src/game/warden-model.js';
+
+      const renderer = new THREE.WebGLRenderer({ antialias: true });
+      renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
+      renderer.setSize(window.innerWidth, window.innerHeight);
+      renderer.shadowMap.enabled = true;
+      document.body.appendChild(renderer.domElement);
+
+      const scene = new THREE.Scene();
+      scene.background = new THREE.Color(0x101014);
+
+      const camera = new THREE.PerspectiveCamera(35, window.innerWidth / window.innerHeight, 0.05, 50);
+      // the Warden's forward is -Z, so the camera sits in front of its face
+      // ?view=front | side | back (default: three-quarter front)
+      const views = {
+        front: [1.4, FACE_HEIGHT + 0.4, -6.2],
+        side: [8.5, FACE_HEIGHT * 0.8, 0],
+        back: [-1.4, FACE_HEIGHT + 0.4, 8.5],
+      };
+      const view = new URLSearchParams(location.search).get('view');
+      camera.position.set(...(views[view] || views.front));      camera.lookAt(0, FACE_HEIGHT * 0.75, 0);
+
+
+
+      scene.add(new THREE.HemisphereLight(0xd8d8e0, 0x202024, 0.8));
+      const key = new THREE.DirectionalLight(0xffffff, 2.2);
+      key.position.set(-3, 5, -4);
+      key.castShadow = true;
+      scene.add(key);
+
+      const floor = new THREE.Mesh(
+        new THREE.PlaneGeometry(10, 10),
+        new THREE.MeshStandardMaterial({ color: 0x2a2a2e, roughness: 1 }),
+      );
+      floor.rotation.x = -Math.PI / 2;
+      floor.receiveShadow = true;
+      scene.add(floor);
+
+      const rig = new WardenRig();
+      const rest = { phase: 0, speed: 0, settle: 0, yawRate: 0, time: 0, headPitch: 0, lookYaw: 0, tilt: 0, raise: 0, lunge: 0, grab: 0, rear: 0 };
+      const start = performance.now();
+
+      const { object, mesh } = await loadWardenModel();
+      scene.add(object);
+      const info = document.getElementById('info');
+      info.textContent = `Warden · scale ${MODEL_SCALE} · vertices ${mesh.geometry.attributes.position.count}`;
+
+      function frame() {
+        rig.update(1 / 60, { ...rest, time: (performance.now() - start) / 1000 });
+        renderer.render(scene, camera);
+        requestAnimationFrame(frame);
+      }
+      frame();
+
+      window.addEventListener('resize', () => {
+        camera.aspect = window.innerWidth / window.innerHeight;
+        camera.updateProjectionMatrix();
+        renderer.setSize(window.innerWidth, window.innerHeight);
+      });
+    </script>
+  </body>
+</html>

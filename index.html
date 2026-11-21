@@ -1,0 +1,612 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta
+      name="viewport"
+      content="width=device-width, initial-scale=1.0, viewport-fit=cover, maximum-scale=1.0, user-scalable=no"
+    />
+    <meta name="theme-color" content="#07080a" />
+    <meta
+      name="description"
+      content="THE LAST EXIT — a first-person survival horror escape game. Wake up in an abandoned underground medical facility, find the key, and get out before the thing in the dark finds you."
+    />
+    <title>THE LAST EXIT — Survival Horror Escape</title>
+    <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' fill='%23090a0c'/%3E%3Cpath d='M8 5h16v4H8z' fill='%23a3121b'/%3E%3Cpath d='M13 9h6v18h-6z' fill='%23c9ccd1'/%3E%3C/svg%3E" />
+    <link rel="stylesheet" href="./src/styles/base.css" />
+    <link rel="stylesheet" href="./src/styles/site.css" />
+    <link rel="stylesheet" href="./src/styles/game-ui.css" />
+    <link rel="stylesheet" href="./src/styles/responsive.css" />
+  </head>
+  <body class="is-menu">
+    <a class="skip-link" href="#story">Skip to content</a>
+
+    <!-- ==================== WEBSITE / MARKETING LAYER ==================== -->
+    <div id="site" class="site">
+      <header class="sitenav" id="sitenav">
+        <a class="sitenav__brand" href="#top">
+          <span class="sitenav__mark" aria-hidden="true"></span>
+          <span class="sitenav__name">THE LAST EXIT</span>
+        </a>
+        <nav class="sitenav__links" aria-label="Main">
+          <a href="#story">Story</a>
+          <a href="#howto">How to play</a>
+          <a href="#facility">Facility</a>
+        </nav>
+        <div class="sitenav__actions">
+          <button
+            type="button"
+            class="icon-btn"
+            id="site-mute"
+            aria-pressed="false"
+            title="Toggle sound"
+          >
+            <span class="icon-btn__glyph" id="site-mute-glyph" aria-hidden="true">♪</span>
+            <span class="visually-hidden">Toggle sound</span>
+          </button>
+          <button type="button" class="btn btn--primary btn--sm" data-play>PLAY NOW</button>
+        </div>
+      </header>
+
+      <!-- ---------- HERO ---------- -->
+      <section class="hero" id="top">
+        <canvas class="hero__canvas" id="hero-canvas" aria-hidden="true"></canvas>
+        <div class="hero__vignette" aria-hidden="true"></div>
+        <div class="hero__scanlines" aria-hidden="true"></div>
+        <div class="hero__content">
+          <p class="eyebrow">
+            <span class="eyebrow__dot" aria-hidden="true"></span>
+            Sublevel 4 · Containment Breach · 03:41
+          </p>
+          <h1 class="hero__title">
+            <span class="hero__title-line">THE LAST</span>
+            <span class="hero__title-line hero__title-line--accent">EXIT</span>
+          </h1>
+          <p class="hero__tagline">
+            You woke up strapped to a gurney seven storeys underground. The elevator is dead. The
+            lights are dying. Something else is awake down here — and it is listening.
+          </p>
+          <div class="hero__actions">
+            <button type="button" class="btn btn--primary btn--lg" data-play>
+              <span class="btn__pulse" aria-hidden="true"></span>
+              PLAY NOW
+            </button>
+            <a class="btn btn--ghost btn--lg" href="#howto">HOW TO PLAY</a>
+          </div>
+          <ul class="hero__chips" aria-label="At a glance">
+            <li>First-person 3D</li>
+            <li>Runs in your browser</li>
+            <li>Keyboard or touch</li>
+            <li>No download</li>
+          </ul>
+          <p class="hero__hint" id="hero-device-hint"></p>
+        </div>
+        <a class="hero__scroll" href="#story" aria-label="Scroll to story">
+          <span aria-hidden="true"></span>
+          Scroll
+        </a>
+      </section>
+
+      <!-- ---------- STORY ---------- -->
+      <section class="section story" id="story">
+        <div class="section__inner story__grid">
+          <div class="story__text">
+            <p class="eyebrow eyebrow--muted">The story</p>
+            <h2 class="section__title">
+              A facility that was sealed<br />
+              for a reason.
+            </h2>
+            <p class="lede">
+              Ward 9 of the Blackmoor Sublevel Facility was decommissioned in 1987 after an incident
+              nobody signed off on. The corridors are still lit. The generators still hum. And
+              patient records still rotate on the wall, as if someone kept working after the staff
+              were gone.
+            </p>
+            <p>
+              You are the last intake. One key card lock stands between you and the surface lift:
+              the maintenance key from the laboratory, and the blast door in the generator room. The
+              creature that lives in the vents knows these corridors better than you do — it walks
+              them in complete darkness and it only needs to touch you once.
+            </p>
+            <ul class="story__objectives">
+              <li>
+                <span class="story__num">01</span>
+                <div>
+                  <strong>Take the key</strong>
+                  <p>Find the maintenance key in the laboratory on the east wing.</p>
+                </div>
+              </li>
+              <li>
+                <span class="story__num">02</span>
+                <div>
+                  <strong>Reach the blast door</strong>
+                  <p>The exit stays locked — and lit red — until the key is yours.</p>
+                </div>
+              </li>
+              <li>
+                <span class="story__num">03</span>
+                <div>
+                  <strong>Don't be caught</strong>
+                  <p>Sprinting is loud. The flashlight is a beacon. Choose when to be a target.</p>
+                </div>
+              </li>
+            </ul>
+          </div>
+          <aside class="story__panel" aria-label="Case file">
+            <div class="casefile">
+              <p class="casefile__tag">CASE FILE · 1987-04</p>
+              <dl class="casefile__list">
+                <div>
+                  <dt>Location</dt>
+                  <dd>Blackmoor Sublevel Facility</dd>
+                </div>
+                <div>
+                  <dt>Depth</dt>
+                  <dd>42 metres below grade</dd>
+                </div>
+                <div>
+                  <dt>Exit status</dt>
+                  <dd class="casefile__danger">SEALED — keycard required</dd>
+                </div>
+                <div>
+                  <dt>Staff recovered</dt>
+                  <dd>0</dd>
+                </div>
+                <div>
+                  <dt>Subject status</dt>
+                  <dd class="casefile__warn">ALIVE — and moving</dd>
+                </div>
+              </dl>
+              <p class="casefile__note">
+                "If you hear it breathing, stop moving. It hunts the noise, not the shape."
+              </p>
+            </div>
+          </aside>
+        </div>
+      </section>
+
+      <!-- ---------- HOW TO PLAY ---------- -->
+      <section class="section howto" id="howto">
+        <div class="section__inner">
+          <p class="eyebrow eyebrow--muted">How to play</p>
+          <h2 class="section__title">Controls</h2>
+          <p class="lede lede--narrow" id="control-note">
+            Detecting your device… touch controls, keyboard bindings and the on-screen HUD adapt
+            automatically.
+          </p>
+
+          <div class="controls">
+            <article class="controls__card">
+              <header class="controls__head">
+                <span class="controls__icon" aria-hidden="true">⌨</span>
+                <h3>Desktop</h3>
+              </header>
+              <dl class="keys">
+                <div><dt><kbd>W</kbd><kbd>A</kbd><kbd>S</kbd><kbd>D</kbd></dt><dd>Move</dd></div>
+                <div><dt><kbd>Mouse</kbd></dt><dd>Look around (click the screen to capture the cursor)</dd></div>
+                <div><dt><kbd>←</kbd><kbd>→</kbd><kbd>↑</kbd><kbd>↓</kbd></dt><dd>Look around without mouse capture</dd></div>
+                <div><dt><kbd>Shift</kbd></dt><dd>Sprint — burns stamina, and it is loud</dd></div>
+                <div><dt><kbd>E</kbd></dt><dd>Interact — take the key, open the exit, pick up the Lumen key</dd></div>
+                <div><dt><kbd>F</kbd></dt><dd>Toggle the flashlight</dd></div>
+                <div><dt><kbd>R</kbd></dt><dd>Equip or stow the Lumen key</dd></div>
+                <div><dt><kbd>Q</kbd></dt><dd>Lumen Surge — 45 seconds of cyan light without the torch (equipped key needed)</dd></div>
+                <div><dt><kbd>Esc</kbd></dt><dd>Pause / release the cursor</dd></div>
+                <div><dt><kbd>M</kbd></dt><dd>Open the facility map (Esc closes it)</dd></div>
+                <div><dt><kbd>N</kbd></dt><dd>Mute all audio</dd></div>
+              </dl>
+            </article>
+
+            <article class="controls__card">
+              <header class="controls__head">
+                <span class="controls__icon" aria-hidden="true">☍</span>
+                <h3>Mobile &amp; tablet</h3>
+              </header>
+              <dl class="keys keys--touch">
+                <div><dt>Left thumb stick</dt><dd>Move — push in any direction</dd></div>
+                <div><dt>Right side drag</dt><dd>Look around</dd></div>
+                <div><dt>Sprint button</dt><dd>Hold to run while stamina lasts</dd></div>
+                <div><dt>Hand button</dt><dd>Interact — take the key, open the exit</dd></div>
+                <div><dt>Beam button</dt><dd>Toggle the flashlight</dd></div>
+                <div><dt>Surge button</dt><dd>Equips the found Lumen key, then starts 45 seconds of cyan light</dd></div>
+                <div><dt>Pause button</dt><dd>Top-right — resume, restart, settings</dd></div>
+              </dl>
+              <p class="controls__tip">
+                Landscape gives you the widest view of the corridors. Portrait shows a rotate
+                suggestion while you play — dismiss it at any time.
+              </p>
+            </article>
+          </div>
+
+          <div class="rules">
+            <h3 class="rules__title">Survival rules</h3>
+            <ul class="rules__list">
+              <li><span aria-hidden="true">01</span> Sprint drains stamina — walk when it runs dry.</li>
+              <li><span aria-hidden="true">02</span> The flashlight reveals the facility and reveals <em>you</em>.</li>
+              <li><span aria-hidden="true">03</span> The exit door is red and sealed until the key is in your hand.</li>
+              <li><span aria-hidden="true">04</span> One touch from the creature ends the run. Restart and try a new route.</li>
+            </ul>
+          </div>
+        </div>
+      </section>
+
+      <!-- ---------- FACILITY / FEATURES ---------- -->
+      <section class="section facility" id="facility">
+        <div class="section__inner">
+          <p class="eyebrow eyebrow--muted">The facility</p>
+          <h2 class="section__title">Four rooms, one way out</h2>
+          <div class="features">
+            <article class="feature">
+              <h3>Real-time 3D, in the browser</h3>
+              <p>
+                Every corridor, crate and pipe is genuine Three.js geometry with dynamic lighting,
+                fog and flickering fixtures — no background image tricks.
+              </p>
+            </article>
+            <article class="feature">
+              <h3>Ward 9 — where you wake</h3>
+              <p>
+                Gurneys, lockers and cold storage. Loud floors, no cover. Keep moving and keep
+                quiet.
+              </p>
+            </article>
+            <article class="feature">
+              <h3>The laboratory</h3>
+              <p>
+                Fluorescent haze and a single maintenance key on a pedestal. Everyone who took it
+                was heard doing so.
+              </p>
+            </article>
+            <article class="feature">
+              <h3>The theatre</h3>
+              <p>
+                An operating theatre turned supply dump. Crates give you cover — and they give the
+                creature a reason to circle.
+              </p>
+            </article>
+            <article class="feature">
+              <h3>The generator room</h3>
+              <p>
+                The blast door sits under a red light that turns green only for you. Hope the
+                generator holds its flicker.
+              </p>
+            </article>
+            <article class="feature">
+              <h3>Something is hunting</h3>
+              <p>
+                A procedural creature that patrols, listens, investigates and sprints. It navigates
+                the corridors with a real navigation graph.
+              </p>
+            </article>
+          </div>
+        </div>
+      </section>
+
+      <section class="section cta">
+        <div class="section__inner cta__inner">
+          <h2 class="cta__title">The lift is two corridors away.</h2>
+          <p class="cta__text">
+            Best played with sound on and the lights off. Your progress is not saved — every run
+            starts on the same cold gurney.
+          </p>
+          <button type="button" class="btn btn--primary btn--lg" data-play>PLAY NOW</button>
+        </div>
+      </section>
+
+      <footer class="footer">
+        <div class="footer__inner">
+          <p class="footer__brand">THE LAST EXIT</p>
+          <p class="footer__meta">
+            Built with Vite, vanilla JavaScript and Three.js. Audio is synthesised live with the Web
+            Audio API — there are no external assets.
+          </p>
+          <p class="footer__meta footer__meta--dim">
+            Blackmoor Sublevel Facility · fictional · 1987–2026
+          </p>
+        </div>
+      </footer>
+    </div>
+
+    <!-- ==================== GAME LAYER ==================== -->
+    <div id="game-layer" class="game-layer" hidden>
+      <canvas id="game-canvas" class="game-canvas"></canvas>
+      <section class="cctv" id="cctv" aria-label="Security CCTV console" hidden>
+        <div class="cctv__scan" aria-hidden="true"></div>
+        <div class="cctv__noise" data-cctv-noise aria-hidden="true" hidden></div>
+        <header class="cctv__bar">
+          <div class="cctv__title"><span class="cctv__dot" aria-hidden="true"></span>SECURITY CCTV</div>
+          <div class="cctv__meta">
+            <span class="cctv__signal" data-cctv-signal>LIVE</span>
+            <span class="cctv__clock" data-cctv-clock>--:--:--</span>
+          </div>
+        </header>
+        <div class="cctv__label">
+          <span class="cctv__cam"><span data-cctv-id>CAM 01</span><span class="cctv__sep" aria-hidden="true">—</span><span data-cctv-name>MAIN CORRIDOR</span></span>
+          <span class="cctv__count" data-cctv-count>1 / 6</span>
+        </div>
+        <footer class="cctv__footer">
+          <div class="cctv__status">
+            <span>SURVEILLANCE STATUS: ONLINE</span>
+            <span>THREAT TRACKING: UNAVAILABLE</span>
+            <span>CREATURE LOCATION: UNKNOWN</span>
+          </div>
+          <div class="cctv__controls">
+            <button type="button" class="cctv__btn" data-cctv="prev" aria-label="Previous camera">&#9664; PREV</button>
+            <div class="cctv__cams" data-cctv-cams></div>
+            <button type="button" class="cctv__btn" data-cctv="next" aria-label="Next camera">NEXT &#9654;</button>
+            <button type="button" class="cctv__btn cctv__btn--exit" data-cctv="exit">EXIT</button>
+          </div>
+        </footer>
+      </section>
+
+      <!-- HUD -->
+      <div class="hud" id="hud" aria-live="polite">
+        <div class="hud__top">
+          <div class="hud__objective">
+            <span class="hud__label">Objective</span>
+            <p class="hud__objective-text" id="hud-objective">Find the maintenance key</p>
+          </div>
+          <div class="hud__top-right">
+            <div class="hud__timer" id="hud-timer" title="Time survived">00:00</div>
+            <button type="button" class="hud__pause" id="btn-pause" title="Pause (Esc)">
+              <span aria-hidden="true">❚❚</span>
+              <span class="visually-hidden">Pause</span>
+            </button>
+          </div>
+        </div>
+
+        <div class="hud__bottom">
+          <div class="hud__gauges">
+            <div class="gauge" id="gauge-stamina-wrap">
+              <span class="gauge__label">Stamina</span>
+              <div class="gauge__track"><i class="gauge__fill gauge__fill--stamina" id="gauge-stamina"></i></div>
+            </div>
+            <div class="gauge" id="gauge-battery-wrap">
+              <span class="gauge__label">Flashlight <em id="hud-flash-state">ON</em></span>
+              <div class="gauge__track"><i class="gauge__fill gauge__fill--battery" id="gauge-battery"></i></div>
+            </div>
+            <button type="button" class="lumen" id="hud-lumen" data-state="ready" aria-pressed="false" aria-disabled="false" aria-keyshortcuts="Q" title="Lumen Surge (Q)">
+              <span class="lumen__head">
+                <span class="lumen__name">Lumen Surge <kbd>Q</kbd></span>
+                <span class="lumen__time" id="hud-lumen-time">READY</span>
+              </span>
+              <span class="gauge__track"><i class="gauge__fill lumen__fill" id="gauge-lumen"></i></span>
+            </button>
+            <div class="hud__key" id="hud-key" aria-hidden="true">
+              <span class="hud__key-glyph" aria-hidden="true"></span>
+              <span class="hud__key-text">Maintenance key</span>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Facility minimap: circular, click (or M) to open the full map -->
+      <button type="button" class="minimap" id="minimap" aria-expanded="false" aria-controls="facility-map" title="Facility map (M)">
+        <canvas class="minimap__canvas" id="minimap-canvas" aria-hidden="true"></canvas>
+        <span class="minimap__label" id="minimap-label">NO SIGNAL</span>
+        <span class="minimap__expand" aria-hidden="true">⤢</span>
+        <span class="visually-hidden">Open facility map</span>
+      </button>
+
+      <!-- Crosshair + interaction prompt -->
+      <div class="reticle" id="reticle" aria-hidden="true">
+        <span class="reticle__dot"></span>
+        <span class="reticle__ring"></span>
+      </div>
+      <p class="prompt" id="prompt" role="status"></p>
+
+      <!--
+        Directional threat indicator. A ring around the reticle whose arrow
+        rotates to point at THE WARDEN, plus a caption that spells out which
+        side it is on and which of its sounds you just heard. This is the
+        visual equivalent of the footstep and growl cues, so the creature can
+        be located without relying on audio or on turning around.
+      -->
+      <div class="threat" id="threat" aria-hidden="true">
+        <span class="threat__ring"></span>
+        <span class="threat__pip" aria-hidden="true"></span>
+        <span class="threat__arrow" id="threat-arrow"></span>
+      </div>
+      <p class="threat__caption" id="threat-caption" role="status" aria-live="polite"></p>
+
+      <div class="danger" id="danger" aria-hidden="true"></div>
+      <div class="damage" id="damage" aria-hidden="true"></div>
+      <p class="toast" id="toast" role="status" aria-live="polite"></p>
+
+      <!-- Touch controls -->
+      <div class="touch" id="touch" hidden>
+        <div class="touch__look" id="touch-look" aria-hidden="true"></div>
+        <div class="touch__stick" id="touch-stick" role="application" aria-label="Movement stick">
+          <span class="touch__stick-base" aria-hidden="true"></span>
+          <span class="touch__stick-knob" id="touch-knob" aria-hidden="true"></span>
+        </div>
+        <div class="touch__buttons">
+          <button type="button" class="tbtn tbtn--sprint" id="btn-sprint" aria-pressed="false">
+            <span class="tbtn__glyph" aria-hidden="true">»</span>
+            <span class="tbtn__label">Sprint</span>
+          </button>
+          <button type="button" class="tbtn tbtn--interact" id="btn-interact">
+            <span class="tbtn__glyph" aria-hidden="true">✋</span>
+            <span class="tbtn__label">Interact</span>
+          </button>
+          <button type="button" class="tbtn tbtn--flash" id="btn-flash" aria-pressed="true">
+            <span class="tbtn__glyph" aria-hidden="true">◉</span>
+            <span class="tbtn__label">Beam</span>
+          </button>
+          <button type="button" class="tbtn tbtn--lumen" id="btn-lumen" data-state="ready" aria-pressed="false" aria-disabled="false">
+            <span class="tbtn__glyph" aria-hidden="true">✦</span>
+            <span class="tbtn__label">Surge</span>
+          </button>
+        </div>
+        <button type="button" class="tbtn tbtn--map" id="btn-map" aria-label="Open facility map">
+          <span class="tbtn__glyph" aria-hidden="true">▦</span>
+          <span class="tbtn__label">Map</span>
+        </button>
+      </div>
+
+      <!-- Rotate suggestion -->
+      <div class="rotate-hint" id="rotate-hint" hidden>
+        <span class="rotate-hint__glyph" aria-hidden="true">⟳</span>
+        <p>Rotate to landscape for a wider view of the corridors.</p>
+        <button type="button" class="btn btn--ghost btn--sm" id="btn-rotate-dismiss">Dismiss</button>
+      </div>
+
+      <!-- Loading -->
+      <div class="overlay overlay--loading" id="loading" role="status">
+        <p class="overlay__eyebrow">Sublevel 4</p>
+        <p class="overlay__title" id="loading-text">Descending…</p>
+        <div class="loadbar" aria-hidden="true"><i id="loadbar-fill"></i></div>
+      </div>
+
+      <!-- Pause menu -->
+      <div class="overlay overlay--menu" id="pause-menu" role="dialog" aria-modal="true" aria-labelledby="pause-title" hidden>
+        <div class="panel">
+          <p class="overlay__eyebrow">Paused</p>
+          <h2 class="panel__title" id="pause-title">The corridor is waiting</h2>
+          <p class="panel__note" id="pause-objective">Objective: find the maintenance key</p>
+          <div class="panel__actions">
+            <button type="button" class="btn btn--primary btn--lg" id="btn-resume">RESUME</button>
+            <button type="button" class="btn btn--ghost" id="btn-restart">RESTART RUN</button>
+            <button type="button" class="btn btn--ghost" id="btn-quit">RETURN TO MAIN MENU</button>
+          </div>
+          <div class="panel__settings">
+            <div class="setting">
+              <span class="setting__label">Graphics</span>
+              <div class="segmented" role="group" aria-label="Graphics quality">
+                <button type="button" class="segmented__btn" data-quality="high">High</button>
+                <button type="button" class="segmented__btn" data-quality="low">Performance</button>
+              </div>
+            </div>
+            <div class="setting">
+              <span class="setting__label">Audio</span>
+              <div class="segmented" role="group" aria-label="Audio">
+                <button type="button" class="segmented__btn" data-mute="off">On</button>
+                <button type="button" class="segmented__btn" data-mute="on">Muted</button>
+              </div>
+            </div>
+            <div class="setting setting--wide" id="setting-mouse">
+              <span class="setting__label">Mouse sensitivity · <span id="mouse-sensitivity-val">100%</span></span>
+              <input type="range" id="mouse-sensitivity" min="20" max="300" step="5" value="100" />
+            </div>
+            <div class="setting" id="setting-mouse-reset-wrap">
+              <span class="setting__label">Mouse sensitivity default</span>
+              <button type="button" class="btn btn--ghost btn--sm" id="btn-mouse-reset">Reset</button>
+            </div>
+            <div class="setting setting--wide">
+              <span class="setting__label">Touch look · horizontal</span>
+              <input type="range" id="look-sensitivity" min="40" max="240" step="10" value="100" />
+            </div>
+            <div class="setting setting--wide">
+              <span class="setting__label">Touch look · vertical</span>
+              <input type="range" id="look-sensitivity-y" min="40" max="240" step="10" value="100" />
+            </div>
+            <div class="setting">
+              <span class="setting__label">Touch look default</span>
+              <button type="button" class="btn btn--ghost btn--sm" id="btn-touch-reset">Reset</button>
+            </div>
+          </div>
+          <p class="panel__hint" id="pause-hint"></p>
+        </div>
+      </div>
+
+      <!-- Kill-sequence caption, shown over the close-up -->
+      <p class="caught-text" id="caught-text" aria-live="assertive" hidden>CAUGHT YOU.</p>
+
+      <!-- Game over -->
+      <div class="overlay overlay--dead" id="gameover" role="dialog" aria-modal="true" aria-labelledby="dead-title" hidden>
+        <div class="panel panel--dead">
+          <p class="overlay__eyebrow overlay__eyebrow--danger">You were found</p>
+          <h2 class="panel__title panel__title--dead" id="dead-title">YOU ARE DEAD</h2>
+          <p class="panel__note" id="dead-note">It heard you before it saw you.</p>
+          <dl class="stats">
+            <div><dt>Time survived</dt><dd id="dead-time">00:00</dd></div>
+            <div><dt>Key retrieved</dt><dd id="dead-key">No</dd></div>
+          </dl>
+          <div class="panel__actions">
+            <button type="button" class="btn btn--primary btn--lg" id="btn-retry">RESTART</button>
+            <button type="button" class="btn btn--ghost" id="btn-dead-menu">MAIN MENU</button>
+          </div>
+        </div>
+      </div>
+
+      <!-- Victory -->
+      <div class="overlay overlay--win" id="victory" role="dialog" aria-modal="true" aria-labelledby="win-title" hidden>
+        <div class="panel panel--win">
+          <p class="overlay__eyebrow overlay__eyebrow--good">Blast door open</p>
+          <h2 class="panel__title" id="win-title">YOU REACHED THE LAST EXIT</h2>
+          <p class="panel__note">
+            The lift takes you up through 42 metres of concrete. Something below stops screaming.
+          </p>
+          <dl class="stats">
+            <div><dt>Escape time</dt><dd id="win-time">00:00</dd></div>
+            <div><dt>Stamina left</dt><dd id="win-stamina">100%</dd></div>
+            <div><dt>Times detected</dt><dd id="win-detections">0</dd></div>
+          </dl>
+          <div class="panel__actions">
+            <button type="button" class="btn btn--primary btn--lg" id="btn-again">PLAY AGAIN</button>
+            <button type="button" class="btn btn--ghost" id="btn-win-menu">RETURN TO MAIN MENU</button>
+          </div>
+        </div>
+      </div>
+
+      <!-- Full-screen facility map (M / Esc / Close) -->
+      <section class="fmap" id="facility-map" role="dialog" aria-modal="true" aria-labelledby="fmap-title" hidden>
+        <header class="fmap__head">
+          <div class="fmap__heading">
+            <p class="fmap__eyebrow">THE LAST EXIT · FACILITY NAVIGATION SYSTEM</p>
+            <h2 class="fmap__title" id="fmap-title">FACILITY MAP</h2>
+          </div>
+          <div class="fmap__readouts">
+            <span class="fmap__chip">WARD <strong id="fmap-ward">NO SIGNAL</strong></span>
+            <span class="fmap__chip">SURVEYED <strong id="fmap-percent">0%</strong></span>
+          </div>
+          <button type="button" class="btn btn--ghost btn--sm fmap__close" id="fmap-close">CLOSE <kbd>M</kbd></button>
+        </header>
+        <div class="fmap__body">
+          <div class="fmap__stage">
+            <canvas class="fmap__canvas" id="fmap-canvas"></canvas>
+            <div class="fmap__zoom" role="group" aria-label="Map zoom">
+              <button type="button" class="fmap__btn" id="fmap-zoom-in" aria-label="Zoom in">+</button>
+              <button type="button" class="fmap__btn" id="fmap-zoom-out" aria-label="Zoom out">−</button>
+              <button type="button" class="fmap__btn fmap__btn--wide" id="fmap-centre">CENTRE</button>
+            </div>
+          </div>
+          <aside class="fmap__panel" aria-label="Navigation status">
+            <dl class="fmap__list">
+              <div><dt>Location</dt><dd id="fmap-location">UNCHARTED</dd></div>
+              <div><dt>Ward</dt><dd id="fmap-ward-panel">NO SIGNAL</dd></div>
+              <div><dt>Surveyed</dt><dd id="fmap-percent-panel">0%</dd></div>
+              <div><dt>Navigation</dt><dd id="fmap-status">ONLINE</dd></div>
+            </dl>
+            <div class="fmap__threat" role="note">
+              <p>THREAT TRACKING: UNAVAILABLE</p>
+              <p>CREATURE LOCATION: UNKNOWN</p>
+            </div>
+          </aside>
+        </div>
+      </section>
+
+      <!-- Desktop capture hint -->
+      <button type="button" class="capture-hint" id="capture-hint" hidden>
+        Click to capture the mouse and keep looking around
+      </button>
+    </div>
+
+    <!-- WebGL failure panel -->
+    <div class="overlay overlay--fatal" id="webgl-error" hidden>
+      <div class="panel">
+        <p class="overlay__eyebrow overlay__eyebrow--danger">Unsupported browser</p>
+        <h2 class="panel__title">3D not available</h2>
+        <p class="panel__note" id="webgl-error-text">
+          THE LAST EXIT needs WebGL. Please update your browser or enable hardware acceleration and
+          reload the page.
+        </p>
+      </div>
+    </div>
+
+    <noscript>
+      <p class="noscript">THE LAST EXIT needs JavaScript and WebGL enabled to run the 3D facility.</p>
+    </noscript>
+
+    <script type="module" src="./src/main.js"></script>
+  </body>
+</html>

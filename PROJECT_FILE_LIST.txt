@@ -1,0 +1,190 @@
+THE LAST EXIT — PROJECT FILE LIST
+=================================
+
+Project root : C:\Users\MD Rehan\Desktop\the-last-exit
+Generated    : 2026-10-16 (recovery pass; PHASE 1 re-verified it unchanged; PHASE 2 re-measured
+                every line count and byte size, because 7 source/markup/style files changed)
+Scope        : source code, configuration, documentation, validation scripts.
+Excluded     : node_modules/, dist/ (generated build output), .vite/, and OS caches.
+
+Line counts are physical lines. Sizes are bytes.
+
+IMPORTANT — this list describes the PROJECT ONLY. An independent backup snapshot lives OUTSIDE the
+project, at  C:\Users\MD Rehan\Desktop\the-last-exit-backup-2026-10-16 . It contains all 31 files
+listed below plus a MANIFEST.sha256 checksum manifest and BACKUP_INFO.txt. It is intentionally not
+part of this inventory, and it is not a subfolder of the project.
+
+
+--------------------------------------------------------------------------------
+ROOT
+--------------------------------------------------------------------------------
+
+  .gitignore                        51 B      Version-control ignores (node_modules, dist, dist-ssr, *.local, .DS_Store, .vite)
+  index.html                    23,031 B    501 lines. THE ONLY HTML FILE. Contains the entire website layer (nav, hero,
+                                              story, how-to-play, facility, CTA, footer) AND the entire game layer (canvas,
+                                              HUD, reticle, directional threat ring + caption, prompts, touch controls,
+                                              loading, pause, game-over, victory, WebGL-error panels). Links the 4
+                                              stylesheets and loads src/main.js as a module.
+  package.json                     463 B      Name/version/type:module. Deps: three ^0.186.1. DevDeps: vite ^7.1.5.
+                                              Scripts: dev, build, preview (port 4173), check:map.
+  package-lock.json             35,687 B      Lockfile v3 (installed vite resolves to 7.3.7).
+  vite.config.js                   258 B      base './' · dev server 127.0.0.1:5178 (strictPort false) · build target
+                                              es2020, sourcemaps off, chunkSizeWarningLimit 1200.
+
+--------------------------------------------------------------------------------
+DOCUMENTATION  (created during the recovery pass)
+--------------------------------------------------------------------------------
+
+  AGENTS.md                                    Permanent instructions for any AI agent working on this project:
+                                              hard rules, evidence rules, verification commands, conventions, pitfalls.
+  PROJECT_HANDOFF.md                           Continuity file. Recovered project state, verified findings, platform
+                                              status, build/test results, known bugs, next recommended task, change log.
+  GAME_REQUIREMENTS.md                         The intended feature set with an honest per-feature status label
+                                              (COMPLETE / IMPLEMENTED, UNVERIFIED / PARTIAL / MISSING / BROKEN).
+  PROJECT_FILE_LIST.txt                        This file.
+
+--------------------------------------------------------------------------------
+VALIDATION SCRIPTS
+--------------------------------------------------------------------------------
+
+  scripts/
+    check-map.mjs                  3,591 B     89 lines. Facility sanity check (`npm run check:map`). 21 assertions:
+                                              map is square 21x21, every row is 21 chars, spawn/key exist, all 186
+                                              walkable cells reachable by flood fill, key/lights/doorways reachable via BFS,
+                                              blast door occupies 2 cells with walkable approaches, creature spawn is
+                                              walkable and can path to the key. Prints the map and PASS/FAIL.
+                                              Exits non-zero on failure. Imports the real level module, so it tests
+                                              shipped code, not a copy.
+
+--------------------------------------------------------------------------------
+APPLICATION BOOTSTRAP
+--------------------------------------------------------------------------------
+
+  src/
+    main.js                       13,614 B    410 lines. Application bootstrap. Builds the DOM reference map, WebGL
+                                              capability guard with a fatal panel that disables every PLAY button, wires
+                                              every menu button, owns settings persistence, handles the run lifecycle
+                                              (startGame / ensureGame / handleState), lazily creates the Game on first PLAY,
+                                              and exposes the window.__lastExit QA surface (game, state, debug, play,
+                                              quality, touch, tick, press, release).
+
+--------------------------------------------------------------------------------
+GAME MODULES  (src/game)
+--------------------------------------------------------------------------------
+
+    config.js                      5,530 B    181 lines. SINGLE SOURCE OF TUNING. Exports CELL, WALL_H, PLAYER, TORCH,
+                                              LOOK, ENEMY, the QUALITY tiers (high/low), detectQuality(),
+                                              setForcedTouch()/isTouchDevice(), the never-throwing localStorage wrapper
+                                              `store`, math helpers (clamp/lerp/damp) and the deterministic mulberry32 PRNG.
+    level.js                      32,419 B    949 lines. THE LARGEST MODULE. Authored 21x21 tile map (MAP_ROWS), grid
+                                              helpers, BFS navigation graph (findPath), grid-sampled line of sight
+                                              (hasLineOfSight), and buildLevel() which constructs all facility geometry:
+                                              instanced walls, floor/ceiling, crates, barrels, lockers, pipes, beams,
+                                              debris, gurneys, blood decals, door frames, flickering fixtures, dust,
+                                              the key pedestal and the two-leaf blast door (buildBlastDoor). Also owns the
+                                              per-frame flicker/dust update and disposal.
+    textures.js                    9,521 B    277 lines. Procedural canvas textures, cached and shared: wall, floor,
+                                              ceiling, metal, rust, plate (lockers/doors), blood decal, dust sprite and the
+                                              EXIT sign. No image files exist anywhere in the project.
+    player.js                      9,264 B    276 lines. Player controller: camera look, circle-vs-grid collision with
+                                              separated X/Z axis resolution (slides along walls), sprint stamina with regen
+                                              delay, head bob and roll, flashlight battery drain/regen, torch sway, and the
+                                              camera-mounted SpotLight plus a weak fill light.
+    input.js                       8,308 B    282 lines. `Controls` — one neutral surface where keyboard, mouse (with or
+                                              without Pointer Lock) and touch all meet. Owns movement/sprint/look state, the
+                                              one-shot action queue, pointer-lock request/exit, drag-to-look fallback, and
+                                              arrow-key look. Gameplay never reads raw events.
+    touch.js                       8,579 B    217 lines. `TouchControls` — virtual thumb stick (dead zone, knob tracking,
+                                              pointer capture), drag-to-look surface, and the Sprint/Interact/Beam buttons,
+                                              using Pointer Events so multi-touch works. Also suppresses context menu,
+                                              gestures and double-tap zoom while playing.
+    enemy.js                      29,965 B    848 lines. THE WARDEN. `Creature` — a 55-mesh 3D rig built from two shared unit
+                                              primitives (box, sphere) scaled per part: 2.45 m to the face, thin torso, four
+                                              limbs, two unequal arms with a fixed elbow crook, ten two-segment fingers in a
+                                              rake, sloped mismatched shoulders, sunken face with emissive unmatched eyes,
+                                              wound/rib damage, plus breathing, irregular head tilts, twitches and a hand
+                                              curl. AI: patrol / search / chase FSM, vision cone + proximity detection meter,
+                                              torch bonus, hearing scaled by walk vs sprint, BFS re-pathing, per-axis
+                                              collision against the tile grid AND the 43 procgen box colliders, a
+                                              travel-sampling stuck detector with sidestep recovery, a trapped-position
+                                              safety valve, `_cue()` sound mirroring for the HUD, and the catch check.
+    interactions.js                5,044 B    165 lines. `Objectives` — owns the key and the blast door: focus detection by
+                                              distance + view cone (no raycast, so it behaves identically with mouse,
+                                              keyboard or thumb), prompt text, key collection and door unlocking/opening.
+    hud.js                         6,284 B    181 lines. `Hud` — the ONLY module that writes HUD DOM. Objective,
+                                              timer, stamina, battery, flashlight state, key chip, tension vignette, reticle
+                                              states, interaction prompt, toasts, damage overlay, and `setThreat()` — the
+                                              directional threat ring plus its eight-point direction caption, written only
+                                              when the sentence actually changes. Also exports formatTime().
+    audio.js                      17,567 B    529 lines. `AudioEngine` — 100% Web Audio synthesis, no files: drone stack
+                                              + LFO + ventilation hiss + randomised distant groans (ambience), heartbeat
+                                              scaled by tension, footstep, creature step (distance-attenuated), flashlight
+                                              click, pickup, unlock relay clunk, locked buzz, door slide, growl, groan,
+                                              stinger, caught and victory cues.
+    hero.js                       12,903 B    376 lines. `HeroScene` — the cheap second Three.js scene behind the landing
+                                              page: a corridor with ribs/arches, crates, lockers, flickering fixtures, a red
+                                              emergency glow, drifting dust and a figure that periodically fades in ahead of
+                                              the camera. Caps its pixel ratio and pauses when scrolled off screen.
+    game.js                       20,485 B    616 lines. `Game` — the controller. Owns the renderer, scene, camera, and the
+                                              SINGLE animation loop (pausing stops the loop rather than spawning another, so
+                                              restarting never leaves duplicate loops). Owns the run state machine, quality
+                                              application, resize/orientation handling, pointer-lock reactions, fullscreen
+                                              attempt, visibility auto-pause, the escape cinematic, the threat-bearing maths
+                                              that converts the camera's own axes into a compass bearing to the creature, and
+                                              the QA helpers (step/teleport/teleportCreature/interact/debug).
+
+--------------------------------------------------------------------------------
+SITE MODULES  (src/site)
+--------------------------------------------------------------------------------
+
+    site.js                        3,189 B     81 lines. Marketing layer wiring: device-detection copy for the hero hint
+                                              and controls section, sticky-nav scroll state, IntersectionObserver scroll
+                                              reveals, the header mute button, and every [data-play] button.
+
+--------------------------------------------------------------------------------
+STYLESHEETS  (src/styles)
+--------------------------------------------------------------------------------
+
+    base.css                       7,468 B    380 lines. Reset, design tokens and the palette (dark charcoal /
+                                              desaturated blue-grey / restrained red), typography, the --safe-* variables
+                                              derived from env(safe-area-inset-*), and the html/body page lock while playing.
+    site.css                      12,430 B    613 lines. Landing page: nav, hero (with scanlines and vignette), story,
+                                              case file, controls cards, survival rules, facility features, CTA, footer.
+    game-ui.css                   18,960 B    930 lines. Game layer: canvas, HUD (objective, timer, gauges, key chip),
+                                              reticle, prompts, toasts, danger/damage vignettes, the directional threat
+                                              indicator (ring, arrow rotated about the ring centre, ahead tick, caption),
+                                              touch controls (stick, knob, action buttons), rotate hint, every overlay/panel
+                                              (loading, pause, game over, victory, fatal), capture hint, [hidden] rules.
+    responsive.css                 5,276 B    249 lines. Breakpoints (480/640/768/900/1024), coarse-pointer tuning,
+                                              landscape-phone compaction (labels hidden, smaller controls), very-short-screen
+                                              rules, the touch-only rotate hint rule, and the print fallback.
+
+--------------------------------------------------------------------------------
+GENERATED / EXCLUDED  (listed for completeness — do not hand-edit)
+--------------------------------------------------------------------------------
+
+  dist/index.html                              Production build output (22,890 B)
+  dist/assets/index-<hash>.css                 Bundled CSS (31,580 B)
+  dist/assets/index-<hash>.js                  Bundled JS (622,810 B; 160,540 B gzipped) — dominated by Three.js
+  node_modules/                                Installed dependencies (three, vite and transitive packages)
+  .vite/                                       Vite dependency cache
+
+  NOTE: dist/ was regenerated during the recovery pass by running `npm run build`. Its asset
+  filenames are content-hashed and therefore change on every build.
+
+--------------------------------------------------------------------------------
+TOTALS
+--------------------------------------------------------------------------------
+
+  JavaScript       14 modules under src/  (5,388 lines) + 1 script under scripts/ (89 lines)  =  5,477
+  CSS               4 stylesheets under src/styles/                        2,172 lines
+  HTML              1 file (index.html)                                       501 lines
+  Documentation     4 files (AGENTS, PROJECT_HANDOFF, GAME_REQUIREMENTS, PROJECT_FILE_LIST)
+  Binary assets     0   (all textures are drawn to <canvas> at runtime; all audio is synthesised)
+
+  Source total (JS + CSS + HTML, excluding the 4 docs):                     8,061 lines
+
+  NO NEW FILES WERE ADDED OR REMOVED IN PHASE 2 — every change was an edit in place, so the file
+  count is unchanged at 31 in the backup snapshot's manifest. What grew is enemy.js (+401 lines,
+  +15,465 B), game-ui.css (+95 lines, +2,140 B), game.js (+64 lines, +2,626 B), hud.js (+66 lines,
+  +2,410 B), config.js (+15 lines, +629 B) and index.html (+15 lines, +722 B).
