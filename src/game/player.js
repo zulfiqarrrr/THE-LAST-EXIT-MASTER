@@ -42,6 +42,8 @@ export class Player {
     this._tmp = new THREE.Vector3();
 
     this.camera.rotation.order = 'YXZ';
+    this.reducedMotion =
+      typeof matchMedia === 'function' && matchMedia('(prefers-reduced-motion: reduce)').matches;
     this._buildFlashlight();
     scene.add(camera);
   }
@@ -73,9 +75,9 @@ export class Player {
     torch.target = target;
     this.torch = torch;
 
-    // A weak fill light so the player is never completely blind with the
+    // A fill light so the player is never completely blind with the
     // flashlight off (and mobile devices stay readable).
-    const fill = new THREE.PointLight(0x9fb3c6, 2.2, 7, 2);
+    const fill = new THREE.PointLight(0xa8bed2, 4.2, 10, 2);
     fill.position.set(0, 0.1, 0);
     this.camera.add(fill);
     this.fillLight = fill;
@@ -137,8 +139,22 @@ export class Player {
     const distance = toTarget.length();
     if (distance < 0.001) return true;
     toTarget.normalize();
+
+    // 1. Direct 3D camera ray test (matches reticle / crosshair pitch and yaw)
+    const camDir = this._camDir || (this._camDir = new THREE.Vector3());
+    this.camera.getWorldDirection(camDir);
+    if (camDir.dot(toTarget) >= minDot) return true;
+
+    // 2. Horizontal fallback test (matches forward player direction on XZ plane)
     const forward = this.getForward().normalize();
-    return forward.dot(toTarget) >= minDot;
+    const toTargetXZ = this._tmpXZ || (this._tmpXZ = new THREE.Vector3());
+    toTargetXZ.set(toTarget.x, 0, toTarget.z);
+    if (toTargetXZ.lengthSq() > 0.0001) {
+      toTargetXZ.normalize();
+      if (forward.dot(toTargetXZ) >= minDot) return true;
+    }
+
+    return false;
   }
 
   /* -------------------------------- update -------------------------------- */
@@ -231,9 +247,16 @@ export class Player {
   }
 
   _applyCamera(bobStrength) {
-    const bob = Math.sin(this._bobPhase) * PLAYER.bobAmount * bobStrength;
-    const roll = Math.cos(this._bobPhase * 0.5) * 0.012 * bobStrength;
-    this.camera.position.set(this.position.x, PLAYER.eyeHeight + bob, this.position.z);
+    if (this.reducedMotion) {
+      this.camera.position.set(this.position.x, PLAYER.eyeHeight, this.position.z);
+      this.camera.rotation.set(this.pitch, this.yaw, 0, 'YXZ');
+      return;
+    }
+    // Double harmonic organic bob: foot-strike dip and mid-stride recovery
+    const bob = (Math.sin(this._bobPhase * 2) * 0.65 + Math.sin(this._bobPhase) * 0.35) * PLAYER.bobAmount * bobStrength;
+    const swayX = Math.cos(this._bobPhase) * 0.018 * bobStrength;
+    const roll = Math.sin(this._bobPhase) * 0.012 * bobStrength;
+    this.camera.position.set(this.position.x + swayX, PLAYER.eyeHeight + bob, this.position.z);
     this.camera.rotation.set(this.pitch, this.yaw, roll, 'YXZ');
   }
 

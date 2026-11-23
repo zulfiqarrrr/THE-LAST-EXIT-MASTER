@@ -17,6 +17,8 @@
     <link rel="stylesheet" href="./src/styles/site.css" />
     <link rel="stylesheet" href="./src/styles/game-ui.css" />
     <link rel="stylesheet" href="./src/styles/responsive.css" />
+    <link rel="stylesheet" href="./src/styles/map-select.css" />
+    <link rel="stylesheet" href="./src/styles/inspector.css" />
   </head>
   <body class="is-menu">
     <a class="skip-link" href="#story">Skip to content</a>
@@ -71,6 +73,9 @@
               <span class="btn__pulse" aria-hidden="true"></span>
               PLAY NOW
             </button>
+            <a class="btn btn--secondary btn--lg" href="./viewer.html" id="btn-hero-inspect" style="text-decoration:none;">
+              VIEW 3D MONSTERS
+            </a>
             <a class="btn btn--ghost btn--lg" href="#howto">HOW TO PLAY</a>
           </div>
           <ul class="hero__chips" aria-label="At a glance">
@@ -304,6 +309,146 @@
           </p>
         </div>
       </footer>
+    </div>
+
+    <!-- ==================== MAP SELECTION MODAL ==================== -->
+    <div id="map-select" class="overlay overlay--map-select" role="dialog" aria-modal="true" aria-labelledby="map-select-title" hidden>
+      <div class="map-select-dialog">
+        <header class="map-select__header">
+          <p class="map-select__eyebrow">Containment Protocols · Sector Deployment</p>
+          <h2 class="map-select__title" id="map-select-title">SELECT YOUR DESTINATION</h2>
+          <p class="map-select__subtitle">
+            Choose a facility sublevel. Each sector is isolated with distinct architecture, hazards, and its own specialized specimen.
+          </p>
+        </header>
+
+        <div class="map-select__grid" role="radiogroup" aria-label="Available Sublevels">
+          <!-- Card 1: Facility -->
+          <article class="map-card is-selected" data-map="facility" tabindex="0" role="radio" aria-checked="true">
+            <div class="map-card__top">
+              <span class="map-card__level">SUBLEVEL 4</span>
+              <span class="map-card__badge badge--standard">STANDARD</span>
+            </div>
+            <h3 class="map-card__name">MEDICAL FACILITY</h3>
+            <div class="map-card__preview">
+              <canvas class="map-card__canvas" data-preview-map="facility" width="280" height="110"></canvas>
+            </div>
+            <div class="map-card__monster">
+              <span class="map-card__monster-label">SPECIMEN</span>
+              <span class="map-card__monster-name">THE WARDEN</span>
+              <span class="map-card__threat">Class 3 Quadruped · Heavy Stalker</span>
+            </div>
+            <p class="map-card__desc">
+              Hunched necrotic predator patrolling cold steel corridors and clinical wards. Heavy footsteps and bone-splitting grip.
+            </p>
+          </article>
+
+          <!-- Card 2: Sewers -->
+          <article class="map-card" data-map="sewers" tabindex="0" role="radio" aria-checked="false">
+            <div class="map-card__top">
+              <span class="map-card__level">SUBLEVEL 7</span>
+              <span class="map-card__badge badge--hard">HARD</span>
+            </div>
+            <h3 class="map-card__name">DRAINAGE NETWORK</h3>
+            <div class="map-card__preview">
+              <canvas class="map-card__canvas" data-preview-map="sewers" width="280" height="110"></canvas>
+            </div>
+            <div class="map-card__monster">
+              <span class="map-card__monster-label">SPECIMEN</span>
+              <span class="map-card__monster-name">THE CRAWLER</span>
+              <span class="map-card__threat">Class 4 Serpent · Sinusoidal Predator</span>
+            </div>
+            <p class="map-card__desc">
+              Flooded pipe junctions and bio-luminescent conduits. An eyeless, multi-segmented terror that slides through the dark.
+            </p>
+          </article>
+
+          <!-- Card 3: Archive -->
+          <article class="map-card" data-map="archive" tabindex="0" role="radio" aria-checked="false">
+            <div class="map-card__top">
+              <span class="map-card__level">SUBLEVEL 1</span>
+              <span class="map-card__badge badge--nightmare">NIGHTMARE</span>
+            </div>
+            <h3 class="map-card__name">RESEARCH ARCHIVE</h3>
+            <div class="map-card__preview">
+              <canvas class="map-card__canvas" data-preview-map="archive" width="280" height="110"></canvas>
+            </div>
+            <div class="map-card__monster">
+              <span class="map-card__monster-label">SPECIMEN</span>
+              <span class="map-card__monster-name">THE ARCHIVIST</span>
+              <span class="map-card__threat">Class 5 Apex · 4-Armed Watcher</span>
+            </div>
+            <p class="map-card__desc">
+              Decaying record stacks and thick sepia dust. A towering 2.4m biped with elongated limbs that stalks between the shelves.
+            </p>
+          </article>
+        </div>
+
+        <footer class="map-select__actions">
+          <p class="map-select__note" id="map-select-hint">Keyboard: [1-3] or Click to Select · Enter to Descend</p>
+          <div class="map-select__buttons">
+            <button type="button" class="btn btn--secondary" id="btn-map-select-inspect">VIEW 3D MONSTER</button>
+            <button type="button" class="btn btn--ghost" id="btn-map-select-back">BACK</button>
+            <button type="button" class="btn btn--primary btn--lg" id="btn-map-select-enter">ENTER FACILITY</button>
+          </div>
+        </footer>
+      </div>
+    </div>
+
+    <!-- 3D Monster Inspector Overlay -->
+    <div id="monster-inspector" class="overlay overlay--inspector" role="dialog" aria-modal="true" aria-labelledby="inspector-creature-title" hidden>
+      <canvas id="inspector-canvas"></canvas>
+
+      <div class="inspector-ui">
+        <header class="inspector-header">
+          <div class="inspector-badge" id="inspector-creature-badge">SUBLEVEL 4 · MEDICAL FACILITY</div>
+          <h2 class="inspector-title" id="inspector-creature-title">THE WARDEN</h2>
+          <p class="inspector-desc" id="inspector-creature-desc"></p>
+        </header>
+
+        <div class="inspector-controls">
+          <div class="inspector-tabs inspector-tabs--monsters" role="group" aria-label="Select Monster">
+            <button type="button" class="inspector-btn is-active" data-inspector-monster="warden">
+              1. The Warden <span class="sub-chip">Sublevel 4</span>
+            </button>
+            <button type="button" class="inspector-btn" data-inspector-monster="crawler">
+              2. The Crawler <span class="sub-chip">Sublevel 7</span>
+            </button>
+            <button type="button" class="inspector-btn" data-inspector-monster="archivist">
+              3. The Archivist <span class="sub-chip">Sublevel 1</span>
+            </button>
+          </div>
+
+          <div class="inspector-subcontrols">
+            <div class="inspector-group">
+              <span class="inspector-group-label">Animation:</span>
+              <button type="button" class="inspector-pill is-active" data-inspector-anim="walk">Walk</button>
+              <button type="button" class="inspector-pill" data-inspector-anim="idle">Idle</button>
+              <button type="button" class="inspector-pill" data-inspector-anim="aggro">Aggro</button>
+              <button type="button" class="inspector-pill" data-inspector-anim="freeze">Freeze</button>
+            </div>
+
+            <div class="inspector-group">
+              <span class="inspector-group-label">Lighting:</span>
+              <button type="button" class="inspector-pill is-active" data-inspector-light="studio">Studio</button>
+              <button type="button" class="inspector-pill" data-inspector-light="flashlight">Flashlight</button>
+            </div>
+
+            <div class="inspector-group">
+              <button type="button" class="inspector-pill is-active" id="btn-inspector-autorotate">🔄 Turntable</button>
+              <button type="button" class="inspector-pill" id="btn-inspector-resetcam">🎯 Reset View</button>
+            </div>
+          </div>
+        </div>
+
+        <button type="button" class="btn btn--primary inspector-close-btn" id="btn-inspector-close">
+          ✕ CLOSE VIEWER <kbd>ESC</kbd>
+        </button>
+
+        <div class="inspector-hint">
+          Left Drag: 360° Orbit &nbsp;|&nbsp; Scroll: Zoom &nbsp;|&nbsp; Right Drag: Pan &nbsp;|&nbsp; [1-3]: Switch Creature &nbsp;|&nbsp; Space: Pause Rotate
+        </div>
+      </div>
     </div>
 
     <!-- ==================== GAME LAYER ==================== -->

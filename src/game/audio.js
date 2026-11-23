@@ -87,6 +87,16 @@ export class AudioEngine {
     return gain;
   }
 
+  _distortionCurve(amount = 25) {
+    const n = 256;
+    const curve = new Float32Array(n);
+    for (let i = 0; i < n; i += 1) {
+      const x = (i * 2) / n - 1;
+      curve[i] = Math.tanh(x * (1 + amount * 0.12));
+    }
+    return curve;
+  }
+
   _ok() {
     return this.ready && this.context && !this.muted;
   }
@@ -244,22 +254,129 @@ export class AudioEngine {
     body.stop(now + 0.16);
   }
 
-  /** Heavier, wetter step for the creature. */
+  /** Heavy visceral quadruped claw step. */
   creatureStep(distance = 10) {
     if (!this._ok()) return;
     const ctx = this.context;
     const now = ctx.currentTime;
     const closeness = Math.max(0, 1 - distance / 22);
-    const noise = this._noise(0.3);
+
+    // 1. Heavy floor impact (sub-bass physical thud)
+    const thud = ctx.createOscillator();
+    thud.type = 'sine';
+    thud.frequency.setValueAtTime(68, now);
+    thud.frequency.exponentialRampToValueAtTime(26, now + 0.11);
+    const thudGain = this._gain(0);
+    thudGain.gain.setValueAtTime(0.0001, now);
+    thudGain.gain.linearRampToValueAtTime(0.08 + closeness * 0.28, now + 0.015);
+    thudGain.gain.exponentialRampToValueAtTime(0.0001, now + 0.16);
+    thud.connect(thudGain).connect(this.master);
+    thud.start(now);
+    thud.stop(now + 0.2);
+
+    // 2. Concrete claw scrape / wet contact
+    const noise = this._noise(0.22);
     const filter = ctx.createBiquadFilter();
-    filter.type = 'lowpass';
-    filter.frequency.value = 420;
+    filter.type = 'bandpass';
+    filter.frequency.setValueAtTime(540, now);
+    filter.frequency.exponentialRampToValueAtTime(260, now + 0.12);
+    filter.Q.value = 2.2;
+    const noiseGain = this._gain(0);
+    noiseGain.gain.setValueAtTime(0.0001, now);
+    noiseGain.gain.linearRampToValueAtTime(0.04 + closeness * 0.16, now + 0.01);
+    noiseGain.gain.exponentialRampToValueAtTime(0.0001, now + 0.15);
+    noise.connect(filter).connect(noiseGain).connect(this.master);
+    noise.stop(now + 0.22);
+  }
+
+  /** Wet slithering serpentine locomotion for The Crawler. */
+  crawlerSlither(distance = 10) {
+    if (!this._ok()) return;
+    const ctx = this.context;
+    const now = ctx.currentTime;
+    const closeness = Math.max(0, 1 - distance / 22);
+
+    const noise = this._noise(0.35);
+    const filter = ctx.createBiquadFilter();
+    filter.type = 'bandpass';
+    filter.frequency.setValueAtTime(420, now);
+    filter.frequency.exponentialRampToValueAtTime(180, now + 0.3);
+    filter.Q.value = 3.5;
+
     const gain = this._gain(0);
-    gain.gain.setValueAtTime(0, now);
-    gain.gain.linearRampToValueAtTime(0.05 + closeness * 0.22, now + 0.02);
-    gain.gain.exponentialRampToValueAtTime(0.0001, now + 0.3);
+    gain.gain.setValueAtTime(0.0001, now);
+    gain.gain.linearRampToValueAtTime(0.05 + closeness * 0.22, now + 0.05);
+    gain.gain.exponentialRampToValueAtTime(0.0001, now + 0.32);
+
     noise.connect(filter).connect(gain).connect(this.master);
-    noise.stop(now + 0.36);
+    noise.stop(now + 0.35);
+  }
+
+  /** Pressurized bio-acid hiss and mandible tremor for The Crawler. */
+  crawlerHiss(aggression = 1) {
+    if (!this._ok()) return;
+    const ctx = this.context;
+    const now = ctx.currentTime;
+    const dur = 1.1;
+
+    const noise = this._noise(dur);
+    const filter = ctx.createBiquadFilter();
+    filter.type = 'bandpass';
+    filter.frequency.setValueAtTime(1200 + aggression * 400, now);
+    filter.frequency.linearRampToValueAtTime(650, now + dur);
+    filter.Q.value = 5.0;
+
+    const gain = this._gain(0);
+    gain.gain.setValueAtTime(0.0001, now);
+    gain.gain.linearRampToValueAtTime(0.18 * aggression, now + 0.08);
+    gain.gain.exponentialRampToValueAtTime(0.0001, now + dur);
+
+    noise.connect(filter).connect(gain).connect(this.master);
+    noise.stop(now + dur + 0.05);
+  }
+
+  /** Dry papery rustling footfall for The Archivist. */
+  archivistStep(distance = 10) {
+    if (!this._ok()) return;
+    const ctx = this.context;
+    const now = ctx.currentTime;
+    const closeness = Math.max(0, 1 - distance / 22);
+
+    const noise = this._noise(0.18);
+    const filter = ctx.createBiquadFilter();
+    filter.type = 'highpass';
+    filter.frequency.value = 1600;
+
+    const gain = this._gain(0);
+    gain.gain.setValueAtTime(0.0001, now);
+    gain.gain.linearRampToValueAtTime(0.04 + closeness * 0.18, now + 0.01);
+    gain.gain.exponentialRampToValueAtTime(0.0001, now + 0.16);
+
+    noise.connect(filter).connect(gain).connect(this.master);
+    noise.stop(now + 0.2);
+  }
+
+  /** Whispered breath formant for The Archivist. */
+  archivistWhisper(aggression = 1) {
+    if (!this._ok()) return;
+    const ctx = this.context;
+    const now = ctx.currentTime;
+    const dur = 1.4;
+
+    const noise = this._noise(dur);
+    const filter = ctx.createBiquadFilter();
+    filter.type = 'bandpass';
+    filter.frequency.setValueAtTime(2200, now);
+    filter.frequency.linearRampToValueAtTime(1400, now + dur);
+    filter.Q.value = 6;
+
+    const gain = this._gain(0);
+    gain.gain.setValueAtTime(0.0001, now);
+    gain.gain.linearRampToValueAtTime(0.14 * aggression, now + 0.12);
+    gain.gain.exponentialRampToValueAtTime(0.0001, now + dur);
+
+    noise.connect(filter).connect(gain).connect(this.master);
+    noise.stop(now + dur + 0.05);
   }
 
   /* Stereo pan node (falls back to a plain gain where unsupported). */
@@ -473,113 +590,266 @@ export class AudioEngine {
     if (!this._ok()) return;
     const ctx = this.context;
     const now = ctx.currentTime;
-    const osc = ctx.createOscillator();
-    osc.type = 'sawtooth';
-    osc.frequency.setValueAtTime(96 + aggression * 22, now);
-    osc.frequency.exponentialRampToValueAtTime(38, now + 1.1);
-    const filter = ctx.createBiquadFilter();
-    filter.type = 'lowpass';
-    filter.frequency.setValueAtTime(680, now);
-    filter.frequency.exponentialRampToValueAtTime(180, now + 1.1);
-    filter.Q.value = 6;
-    const gain = this._gain(0);
-    gain.gain.setValueAtTime(0.0001, now);
-    gain.gain.linearRampToValueAtTime(0.16 * aggression, now + 0.12);
-    gain.gain.setTargetAtTime(0.0001, now + 0.7, 0.25);
-    osc.connect(filter).connect(gain).connect(this.master);
-    osc.start(now);
-    osc.stop(now + 1.3);
+    const dur = 1.35;
 
-    // wet rattle underneath
-    const rattle = this._noise(1.4);
-    const rattleFilter = ctx.createBiquadFilter();
-    rattleFilter.type = 'bandpass';
-    rattleFilter.frequency.value = 320;
-    rattleFilter.Q.value = 2.4;
-    const rattleGain = this._gain(0);
-    rattleGain.gain.setValueAtTime(0.0001, now);
-    rattleGain.gain.linearRampToValueAtTime(0.06 * aggression, now + 0.15);
-    rattleGain.gain.exponentialRampToValueAtTime(0.0001, now + 1.2);
-    rattle.connect(rattleFilter).connect(rattleGain).connect(this.master);
-    rattle.stop(now + 1.5);
+    // 1. Guttural vocal cord flutter (FM modulation)
+    // Carrier: low fundamental frequency (58Hz - 78Hz), drops subtly
+    const carrier = ctx.createOscillator();
+    carrier.type = 'sawtooth';
+    carrier.frequency.setValueAtTime(58 + aggression * 16, now);
+    carrier.frequency.exponentialRampToValueAtTime(42, now + dur);
+
+    // Modulator: rapid irregular vocal fold tremor (26-32 Hz)
+    const flutter = ctx.createOscillator();
+    flutter.type = 'sawtooth';
+    flutter.frequency.setValueAtTime(28, now);
+    flutter.frequency.linearRampToValueAtTime(32, now + dur * 0.5);
+    flutter.frequency.linearRampToValueAtTime(22, now + dur);
+
+    const flutterGain = ctx.createGain();
+    flutterGain.gain.setValueAtTime(38 + aggression * 15, now);
+    flutterGain.gain.exponentialRampToValueAtTime(18, now + dur);
+    flutter.connect(flutterGain);
+    flutterGain.connect(carrier.frequency);
+
+    // 2. Dual Formant Filtering (Organic vocal tract acoustics)
+    // Throat formant F1 (~290-340Hz) and pharynx formant F2 (~780-860Hz)
+    const f1 = ctx.createBiquadFilter();
+    f1.type = 'bandpass';
+    f1.frequency.setValueAtTime(310 + aggression * 40, now);
+    f1.frequency.exponentialRampToValueAtTime(240, now + dur);
+    f1.Q.value = 3.5;
+
+    const f2 = ctx.createBiquadFilter();
+    f2.type = 'bandpass';
+    f2.frequency.setValueAtTime(840, now);
+    f2.frequency.exponentialRampToValueAtTime(620, now + dur);
+    f2.Q.value = 4.2;
+
+    const formantMix = this._gain(0.85);
+    f1.connect(formantMix);
+    f2.connect(formantMix);
+    carrier.connect(f1);
+    carrier.connect(f2);
+
+    // 3. Sub-bass chest rumble (deep visceral physical weight)
+    const sub = ctx.createOscillator();
+    sub.type = 'sine';
+    sub.frequency.setValueAtTime(48, now);
+    sub.frequency.exponentialRampToValueAtTime(30, now + dur);
+    const subGain = this._gain(0);
+    subGain.gain.setValueAtTime(0.0001, now);
+    subGain.gain.linearRampToValueAtTime(0.24 * aggression, now + 0.1);
+    subGain.gain.setTargetAtTime(0.0001, now + dur * 0.6, 0.25);
+    sub.connect(subGain);
+
+    // 4. Salivary breath aspiration (wet rasping breath)
+    const rasp = this._noise(dur);
+    const raspFilter = ctx.createBiquadFilter();
+    raspFilter.type = 'bandpass';
+    raspFilter.frequency.setValueAtTime(460, now);
+    raspFilter.frequency.exponentialRampToValueAtTime(320, now + dur);
+    raspFilter.Q.value = 2.8;
+    const raspGain = this._gain(0);
+    raspGain.gain.setValueAtTime(0.0001, now);
+    raspGain.gain.linearRampToValueAtTime(0.08 * aggression, now + 0.12);
+    raspGain.gain.exponentialRampToValueAtTime(0.0001, now + dur);
+    rasp.connect(raspFilter).connect(raspGain);
+
+    // 5. Soft-saturation wave shaper to warm and distort the beast's vocal output
+    const shaper = ctx.createWaveShaper();
+    shaper.curve = this._distortionCurve(18);
+    shaper.oversample = '2x';
+
+    const growlOut = this._gain(0);
+    growlOut.gain.setValueAtTime(0.0001, now);
+    growlOut.gain.linearRampToValueAtTime(0.22 * aggression, now + 0.09);
+    growlOut.gain.setTargetAtTime(0.0001, now + dur * 0.55, 0.28);
+
+    formantMix.connect(shaper);
+    subGain.connect(growlOut);
+    raspGain.connect(growlOut);
+    shaper.connect(growlOut);
+    growlOut.connect(this.master);
+
+    carrier.start(now);
+    flutter.start(now);
+    sub.start(now);
+    carrier.stop(now + dur + 0.1);
+    flutter.stop(now + dur + 0.1);
+    sub.stop(now + dur + 0.1);
+    rasp.stop(now + dur + 0.1);
   }
 
   groan() {
     if (!this._ok()) return;
     const ctx = this.context;
     const now = ctx.currentTime;
+    const dur = 3.2;
+
     const osc = ctx.createOscillator();
-    osc.type = 'sawtooth';
-    osc.frequency.setValueAtTime(58, now);
-    osc.frequency.linearRampToValueAtTime(41, now + 2.6);
-    const filter = ctx.createBiquadFilter();
-    filter.type = 'lowpass';
-    filter.frequency.value = 260;
+    osc.type = 'triangle';
+    osc.frequency.setValueAtTime(52, now);
+    osc.frequency.linearRampToValueAtTime(38, now + dur);
+
+    // Throat resonance
+    const formant = ctx.createBiquadFilter();
+    formant.type = 'bandpass';
+    formant.frequency.setValueAtTime(280, now);
+    formant.frequency.linearRampToValueAtTime(190, now + dur);
+    formant.Q.value = 3.0;
+
+    // Slow vibrato / shudder
+    const lfo = ctx.createOscillator();
+    lfo.frequency.value = 5.5;
+    const lfoGain = ctx.createGain();
+    lfoGain.gain.value = 4;
+    lfo.connect(lfoGain).connect(osc.frequency);
+
     const gain = this._gain(0);
     gain.gain.setValueAtTime(0.0001, now);
-    gain.gain.linearRampToValueAtTime(0.05, now + 1.2);
-    gain.gain.setTargetAtTime(0.0001, now + 1.8, 0.8);
-    osc.connect(filter).connect(gain).connect(this.master);
+    gain.gain.linearRampToValueAtTime(0.08, now + 1.1);
+    gain.gain.setTargetAtTime(0.0001, now + 1.9, 0.7);
+
+    osc.connect(formant).connect(gain).connect(this.master);
     osc.start(now);
-    osc.stop(now + 3.4);
+    lfo.start(now);
+    osc.stop(now + dur + 0.2);
+    lfo.stop(now + dur + 0.2);
   }
 
   stinger() {
     if (!this._ok()) return;
     const ctx = this.context;
     const now = ctx.currentTime;
-    const osc = ctx.createOscillator();
-    osc.type = 'sawtooth';
-    osc.frequency.setValueAtTime(420, now);
-    osc.frequency.exponentialRampToValueAtTime(70, now + 0.5);
+
+    // Organic dissonant horror stinger (tritone minor cluster)
+    const oscA = ctx.createOscillator();
+    oscA.type = 'triangle';
+    oscA.frequency.setValueAtTime(220, now);
+    oscA.frequency.exponentialRampToValueAtTime(110, now + 0.6);
+
+    const oscB = ctx.createOscillator();
+    oscB.type = 'triangle';
+    oscB.frequency.setValueAtTime(233, now);
+    oscB.frequency.exponentialRampToValueAtTime(104, now + 0.6);
+
+    const filter = ctx.createBiquadFilter();
+    filter.type = 'bandpass';
+    filter.frequency.setValueAtTime(420, now);
+    filter.Q.value = 2.0;
+
     const gain = this._gain(0);
     gain.gain.setValueAtTime(0.0001, now);
-    gain.gain.linearRampToValueAtTime(0.22, now + 0.02);
-    gain.gain.exponentialRampToValueAtTime(0.0001, now + 0.8);
-    osc.connect(gain).connect(this.master);
-    osc.start(now);
-    osc.stop(now + 0.9);
+    gain.gain.linearRampToValueAtTime(0.24, now + 0.02);
+    gain.gain.exponentialRampToValueAtTime(0.0001, now + 0.7);
 
-    const noise = this._noise(0.8);
-    const filter = ctx.createBiquadFilter();
-    filter.type = 'highpass';
-    filter.frequency.value = 1600;
+    oscA.connect(filter);
+    oscB.connect(filter);
+    filter.connect(gain).connect(this.master);
+
+    oscA.start(now);
+    oscB.start(now);
+    oscA.stop(now + 0.75);
+    oscB.stop(now + 0.75);
+
+    // Shock impact noise rasp
+    const noise = this._noise(0.5);
+    const noiseFilter = ctx.createBiquadFilter();
+    noiseFilter.type = 'bandpass';
+    noiseFilter.frequency.value = 850;
+    noiseFilter.Q.value = 1.5;
     const noiseGain = this._gain(0);
     noiseGain.gain.setValueAtTime(0.0001, now);
-    noiseGain.gain.linearRampToValueAtTime(0.14, now + 0.015);
-    noiseGain.gain.exponentialRampToValueAtTime(0.0001, now + 0.6);
-    noise.connect(filter).connect(noiseGain).connect(this.master);
-    noise.stop(now + 0.9);
+    noiseGain.gain.linearRampToValueAtTime(0.12, now + 0.015);
+    noiseGain.gain.exponentialRampToValueAtTime(0.0001, now + 0.45);
+    noise.connect(noiseFilter).connect(noiseGain).connect(this.master);
+    noise.stop(now + 0.5);
   }
 
   caught() {
     if (!this._ok()) return;
     const ctx = this.context;
     const now = ctx.currentTime;
-    const osc = ctx.createOscillator();
-    osc.type = 'sawtooth';
-    osc.frequency.setValueAtTime(300, now);
-    osc.frequency.exponentialRampToValueAtTime(24, now + 1.8);
-    const gain = this._gain(0);
-    gain.gain.setValueAtTime(0.0001, now);
-    gain.gain.linearRampToValueAtTime(0.34, now + 0.03);
-    gain.gain.exponentialRampToValueAtTime(0.0001, now + 2);
-    osc.connect(gain).connect(this.master);
-    osc.start(now);
-    osc.stop(now + 2.1);
 
-    const noise = this._noise(1.6);
-    const filter = ctx.createBiquadFilter();
-    filter.type = 'bandpass';
-    filter.frequency.setValueAtTime(2400, now);
-    filter.frequency.exponentialRampToValueAtTime(180, now + 1.4);
-    filter.Q.value = 0.8;
-    const noiseGain = this._gain(0);
-    noiseGain.gain.setValueAtTime(0.0001, now);
-    noiseGain.gain.linearRampToValueAtTime(0.3, now + 0.02);
-    noiseGain.gain.exponentialRampToValueAtTime(0.0001, now + 1.6);
-    noise.connect(filter).connect(noiseGain).connect(this.master);
-    noise.stop(now + 1.7);
+    // 1. Heavy physical bone-crushing impact (deep bass shockwave)
+    const punch = ctx.createOscillator();
+    punch.type = 'sine';
+    punch.frequency.setValueAtTime(95, now);
+    punch.frequency.exponentialRampToValueAtTime(22, now + 0.22);
+    const punchGain = this._gain(0);
+    punchGain.gain.setValueAtTime(0.0001, now);
+    punchGain.gain.linearRampToValueAtTime(0.42, now + 0.015);
+    punchGain.gain.exponentialRampToValueAtTime(0.0001, now + 0.35);
+    punch.connect(punchGain).connect(this.master);
+    punch.start(now);
+    punch.stop(now + 0.4);
+
+    // 2. Visceral flesh-tear / gore crunch
+    const gore = this._noise(1.8);
+    const goreFilter = ctx.createBiquadFilter();
+    goreFilter.type = 'bandpass';
+    goreFilter.frequency.setValueAtTime(1400, now);
+    goreFilter.frequency.exponentialRampToValueAtTime(280, now + 0.8);
+    goreFilter.Q.value = 1.8;
+    const goreGain = this._gain(0);
+    goreGain.gain.setValueAtTime(0.0001, now);
+    goreGain.gain.linearRampToValueAtTime(0.35, now + 0.02);
+    goreGain.gain.exponentialRampToValueAtTime(0.0001, now + 1.2);
+    gore.connect(goreFilter).connect(goreGain).connect(this.master);
+    gore.stop(now + 1.4);
+
+    // 3. Ferocious guttural death screech / attack roar (FM throat synthesis, NO raw sawtooth synth!)
+    const carrier = ctx.createOscillator();
+    carrier.type = 'sawtooth';
+    carrier.frequency.setValueAtTime(86, now);
+    carrier.frequency.exponentialRampToValueAtTime(36, now + 1.5);
+
+    // Rapid vocal fold flutter LFO
+    const flutter = ctx.createOscillator();
+    flutter.type = 'sawtooth';
+    flutter.frequency.setValueAtTime(34, now);
+    flutter.frequency.linearRampToValueAtTime(20, now + 1.5);
+    const flutterGain = ctx.createGain();
+    flutterGain.gain.setValueAtTime(55, now);
+    flutterGain.gain.exponentialRampToValueAtTime(20, now + 1.5);
+    flutter.connect(flutterGain).connect(carrier.frequency);
+
+    // Dual acoustic throat formants
+    const f1 = ctx.createBiquadFilter();
+    f1.type = 'bandpass';
+    f1.frequency.setValueAtTime(360, now);
+    f1.frequency.exponentialRampToValueAtTime(220, now + 1.5);
+    f1.Q.value = 3.2;
+
+    const f2 = ctx.createBiquadFilter();
+    f2.type = 'bandpass';
+    f2.frequency.setValueAtTime(940, now);
+    f2.frequency.exponentialRampToValueAtTime(540, now + 1.5);
+    f2.Q.value = 3.8;
+
+    const roarMix = this._gain(0.9);
+    f1.connect(roarMix);
+    f2.connect(roarMix);
+    carrier.connect(f1);
+    carrier.connect(f2);
+
+    // Soft saturation wave shaper
+    const shaper = ctx.createWaveShaper();
+    shaper.curve = this._distortionCurve(22);
+    shaper.oversample = '2x';
+
+    const roarOut = this._gain(0);
+    roarOut.gain.setValueAtTime(0.0001, now);
+    roarOut.gain.linearRampToValueAtTime(0.32, now + 0.04);
+    roarOut.gain.setTargetAtTime(0.0001, now + 1.0, 0.35);
+
+    roarMix.connect(shaper).connect(roarOut).connect(this.master);
+
+    carrier.start(now);
+    flutter.start(now);
+    carrier.stop(now + 1.7);
+    flutter.stop(now + 1.7);
   }
 
   victory() {

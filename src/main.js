@@ -9,6 +9,10 @@ import { Hud, formatTime } from './game/hud.js';
 import { HeroScene } from './game/hero.js';
 import { Game } from './game/game.js';
 import { loadWardenModel } from './game/warden-model.js';
+import { loadCrawlerModel } from './game/creatures/crawler-model.js';
+import { loadArchivistModel } from './game/creatures/archivist-model.js';
+import { MapSelectUI } from './game/map-select-ui.js';
+import { MonsterInspector } from './game/monster-inspector.js';
 import { LOOK, QUALITY, detectQuality, isTouchDevice, setForcedTouch, store } from './game/config.js';
 import { setupSite } from './site/site.js';
 
@@ -72,6 +76,8 @@ const dom = {
     lumenButton: get('#btn-lumen'),
   },
   overlays: {
+    monsterInspector: get('#monster-inspector'),
+    mapSelect: get('#map-select'),
     loading: get('#loading'),
     loadingText: get('#loading-text'),
     loadbar: get('#loadbar-fill'),
@@ -164,13 +170,72 @@ let lastFocused = null;
 const storedMuted = store.get('muted', false);
 audio.setMuted(storedMuted);
 const storedQuality = store.get('quality', detectQuality());
+let qualityName = QUALITY[storedQuality] ? storedQuality : 'high';
 if (dom.touchLookX) dom.touchLookX.value = String(store.get('touchLookX', LOOK.touchDefault));
 if (dom.touchLookY) dom.touchLookY.value = String(store.get('touchLookY', LOOK.touchDefault));
+
+let prewarmPromise = null;
+function prewarmGame() {
+  if (prewarmPromise) return prewarmPromise;
+  prewarmPromise = (async () => {
+    try {
+      const [warden] = await Promise.all([
+        loadWardenModel(),
+        loadCrawlerModel().catch(() => null),
+        loadArchivistModel().catch(() => null),
+      ]);
+      const instance = ensureGame(warden);
+      await instance.prepare();
+      return instance;
+    } catch (err) {
+      console.warn('[THE LAST EXIT] background prewarm deferred:', err);
+      return null;
+    }
+  })();
+  return prewarmPromise;
+}
+
+const mapSelectUI = dom.overlays.mapSelect
+  ? new MapSelectUI({
+      root: dom.overlays.mapSelect,
+      onStart: (mapId) => startGame(mapId),
+    })
+  : null;
+
+const monsterInspector = dom.overlays.monsterInspector
+  ? new MonsterInspector({
+      container: dom.overlays.monsterInspector,
+      site: dom.site,
+      wardenModelPromise: prewarmGame().then((inst) => inst?.creature?._wardenModel || null),
+      onExit: () => hero?.resume(),
+    })
+  : null;
+
+
+
+get('#btn-map-select-inspect')?.addEventListener('click', () => {
+  const currentMap = mapSelectUI?.selectedMapId || 'facility';
+  const monsterMap = { facility: 'warden', sewers: 'crawler', archive: 'archivist' };
+  const targetMonster = monsterMap[currentMap] || 'warden';
+  hideOverlay(dom.overlays.mapSelect);
+  monsterInspector?.open(targetMonster);
+});
+
+try {
+  const params = new URLSearchParams(window.location.search);
+  const viewParam = params.get('view') || params.get('monsters');
+  if (viewParam) {
+    const targetMonster = ['warden', 'crawler', 'archivist'].includes(viewParam)
+      ? viewParam
+      : 'warden';
+    window.location.replace(`./viewer.html?monster=${targetMonster}`);
+  }
+} catch {}
 
 const site = setupSite({
   dom,
   audio,
-  onPlay: () => startGame(),
+  onPlay: () => (mapSelectUI ? mapSelectUI.open() : startGame()),
   onToggleMute: (muted) => applyMute(muted),
 });
 
@@ -189,7 +254,6 @@ function updateQualityUi() {
     button.classList.toggle('is-active', button.dataset.quality === qualityName);
   }
 }
-let qualityName = QUALITY[storedQuality] ? storedQuality : 'high';
 updateQualityUi();
 
 /* ------------------------------ hero scene ------------------------------ */
@@ -235,6 +299,7 @@ function handleState(state, payload = {}) {
   switch (state) {
     case 'idle':
       setBodyPlaying(false);
+      hideOverlay(dom.overlays.mapSelect);
       hideOverlay(dom.overlays.loading);
       hideOverlay(dom.overlays.pause);
       hideOverlay(dom.overlays.gameover);
@@ -294,8 +359,11 @@ function handleState(state, payload = {}) {
   }
 }
 
-function ensureGame(warden) {
-  if (game) return game;
+function ensureGame(warden, mapId = 'facility') {
+  if (game) {
+    if (mapId && game.mapId !== mapId) game.setMap(mapId);
+    return game;
+  }
   game = new Game({
     canvas: dom.canvas,
     layer: dom.layer,
@@ -305,29 +373,13 @@ function ensureGame(warden) {
     quality: qualityName,
     onStateChange: handleState,
     warden,
+    mapId,
   });
   game.applyQuality(qualityName);
   return game;
 }
 
-let prewarmPromise = null;
-function prewarmGame() {
-  if (prewarmPromise) return prewarmPromise;
-  prewarmPromise = (async () => {
-    try {
-      const warden = await loadWardenModel();
-      const instance = ensureGame(warden);
-      await instance.prepare();
-      return instance;
-    } catch (err) {
-      console.warn('[THE LAST EXIT] background prewarm deferred:', err);
-      return null;
-    }
-  })();
-  return prewarmPromise;
-}
-
-async function startGame() {
+async function startGame(mapId) {
   if (starting) return;
   // never restart a run that is already active
   if (game && (game.state === 'playing' || game.state === 'paused' || game.state === 'caught')) return;
@@ -336,10 +388,13 @@ async function startGame() {
     return;
   }
 
+  const targetMap = mapId || mapSelectUI?.selectedMapId || 'facility';
+
   // The AudioContext must be created inside the user gesture.
   audio.init();
   audio.setMuted(store.get('muted', false));
 
+  hideOverlay(dom.overlays.mapSelect);
   hideOverlay(dom.overlays.gameover);
   hideOverlay(dom.overlays.victory);
   hideOverlay(dom.overlays.pause);
@@ -348,7 +403,7 @@ async function startGame() {
   // This guarantees pointer lock succeeds immediately with zero startup delay.
   if (game && game._prepared) {
     dom.overlays.loading.hidden = true;
-    game.startRun();
+    game.startRun(targetMap);
     return;
   }
 
@@ -362,11 +417,15 @@ async function startGame() {
   }
 
   try {
-    const warden = await loadWardenModel();
-    const instance = ensureGame(warden);
+    const [warden] = await Promise.all([
+      loadWardenModel(),
+      loadCrawlerModel().catch(() => null),
+      loadArchivistModel().catch(() => null),
+    ]);
+    const instance = ensureGame(warden, targetMap);
     await instance.prepare();
     dom.overlays.loading.hidden = true;
-    instance.startRun();
+    instance.startRun(targetMap);
   } catch (error) {
     console.error('[THE LAST EXIT] failed to start', error);
     fail(
@@ -446,7 +505,10 @@ window.__lastExit = {
   get debug() {
     return game ? game.debug : { state: 'idle' };
   },
-  play: () => startGame(),
+  play: (mapId) => startGame(mapId),
+  mapSelect: () => mapSelectUI?.open(),
+  inspectMonsters: (monsterId = 'warden') => monsterInspector?.open(monsterId),
+  maps: () => ['facility', 'sewers', 'archive'],
   quality: () => qualityName,
   touch: () => isTouchDevice(),
   /** deterministic stepping for automated checks (fixed delta, no rAF) */

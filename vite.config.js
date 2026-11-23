@@ -11,5 +11,11 @@ export default defineConfig({
     target: 'es2020',
     sourcemap: false,
     chunkSizeWarningLimit: 1200,
+    rollupOptions: {
+      input: {
+        main: './index.html',
+        viewer: './viewer.html',
+      },
+    },
   },
 });

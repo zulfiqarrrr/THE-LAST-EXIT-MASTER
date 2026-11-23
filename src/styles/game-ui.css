@@ -1378,9 +1378,12 @@
   font-size: 0.85rem;
 }
 
-/* the HUD clears away while the Warden has the player */
-.game-layer.is-caught .hud {
+/* the HUD, touch controls, and minimap clear away while the Warden has the player */
+.game-layer.is-caught .hud,
+.game-layer.is-caught .touch,
+.game-layer.is-caught .minimap {
   opacity: 0;
+  pointer-events: none;
   transition: opacity 0.25s ease;
 }
 

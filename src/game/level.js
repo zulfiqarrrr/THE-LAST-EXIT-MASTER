@@ -9,57 +9,15 @@ import * as THREE from 'three';
 import { CELL, WALL_H, LIGHTING, clamp, mulberry32 } from './config.js';
 import * as TEX from './textures.js';
 import { buildWardProps } from './props.js';
+import { buildSewerProps, buildArchiveProps } from './map-props.js';
+import { getMapConfig, DEFAULT_MAP_ID } from './maps/index.js';
+import * as facilityMap from './maps/map-facility.js';
 
 /*
-  Legend
-    #  solid wall (with geometry)
-    .  open floor
-    D  doorway (floor + sliding door frame)
-    L  ceiling fixture (floor + flickering light)
-    X  crate (solid, blocks movement)
-    B  barrel (solid, blocks movement)
-    S  player start (floor)
-    E  blast door / exit (solid, interactable)
-    K  hospital bed (solid)
-    T  medical trolley (solid)
-
-  Layout (x = east, y = south):
-    West block (cols 0-20): the original ring corridor around four rooms —
-    Generator (exit, north-west), Laboratory (key, north-east), Theatre
-    (crates, south-west) and Ward 9 (spawn, south-east).
-    East wing (cols 21-40): a north corridor to a multi-bed ward, a hall that
-    links the ward to patient rooms, a nurses' station and a storage room.
-    South (rows 19-26): a pipe service corridor with utility rooms.
+  Facility map constants (defaults to Facility / Map 1 for backwards compatibility).
 */
-export const MAP_ROWS = [
-  '#'.repeat(41),
-  '#'.repeat(41),
-  '##' + '.'.repeat(35) + '####',
-  '##..#############..##' + '#######D############',
-  '##..##EE#########..##' + '#' + '.'.repeat(13) + '######',
-  '##..#.....##.L..#..##' + '#.K..K...K..K.######',
-  '##..D.L.........D..##' + '#...L.T...L...######',
-  '##..#...........#..##' + '#' + '.'.repeat(13) + '######',
-  '##.L#.....##....#L.##' + '#......L......######',
-  '##..###..########..##' + '#.K..K...K..K.######',
-  '##..###..########..##' + '#.......T.....######',
-  '##..#.....##....#..##' + '#######D############',
-  '##..#B..X.##.S..#..##' + '#######.############',
-  '##..D...X.##..L.D..##' + '#######.############',
-  '##..#.X...##X...#....' + '.'.repeat(17) + '###',
-  '##..#.....##....#..##' + '##D###D####D####D###',
-  '##..##D######D###..##' + '#...#...#.....#...##',
-  '##..##.######.###..##' + '#.K.#...#.T...#...##',
-  '##.................##' + '#...#...#.....#...##',
-  '####.' + '#'.repeat(11) + '.####' + '#'.repeat(20),
-  '##' + '.'.repeat(19) + '.'.repeat(12) + '#'.repeat(8),
-  '####D#########D###########D##############',
-  '##.B.X.#####.X..B#######B..X.############',
-  '##.....#####..X..#######.....############',
-  '##.....#####.....#######..B..############',
-  '#'.repeat(41),
-  '#'.repeat(41),
-];
+export const MAP_ROWS = facilityMap.MAP_ROWS;
+export const MAINTENANCE_SPOTS = facilityMap.MAINTENANCE_SPOTS;
 
 export const COLS = MAP_ROWS[0].length;
 export const ROWS = MAP_ROWS.length;
@@ -71,35 +29,6 @@ export const ROWS = MAP_ROWS.length;
 */
 const ANCHOR_COL = 10;
 const ANCHOR_ROW = 10;
-
-/**
- * Authored hiding places for the LUMEN MAINTENANCE KEY. One is picked per run
- * (see chooseMaintenanceSpot in game.js). `style` sets what the key rests on:
- * 'floor' (corner debris), 'desk', 'cabinet' (open top) or 'shelf'.
- */
-export const MAINTENANCE_SPOTS = [
-  { col: 2, row: 2, style: 'floor' },
-  { col: 10, row: 2, style: 'shelf' },
-  { col: 18, row: 2, style: 'floor' },
-  { col: 2, row: 8, style: 'cabinet' },
-  { col: 18, row: 11, style: 'cabinet' },
-  { col: 17, row: 15, style: 'desk' },
-  { col: 14, row: 5, style: 'shelf' },
-  { col: 12, row: 7, style: 'desk' },
-  { col: 15, row: 8, style: 'cabinet' },
-  { col: 6, row: 11, style: 'cabinet' },
-  { col: 9, row: 14, style: 'floor' },
-  { col: 7, row: 15, style: 'shelf' },
-  { col: 13, row: 17, style: 'floor' },
-  { col: 2, row: 18, style: 'floor' },
-  { col: 18, row: 18, style: 'desk' },
-  { col: 24, row: 7, style: 'floor' },
-  { col: 33, row: 16, style: 'shelf' },
-  { col: 38, row: 17, style: 'cabinet' },
-  { col: 22, row: 16, style: 'floor' },
-  { col: 3, row: 23, style: 'floor' },
-  { col: 25, row: 24, style: 'shelf' },
-];
 
 /** Furniture the maintenance key can rest on. `top` is the surface height (m). */
 const KEY_FURNITURE = {
@@ -115,6 +44,27 @@ const SOLID_CHARS = new Set(['#', 'X', 'B', 'E', 'K', 'T']);
 
 /** Flat character grid: GRID[row][col]. */
 export const GRID = MAP_ROWS.map((row) => row.split(''));
+
+export let currentMapId = 'facility';
+export let currentMapConfig = facilityMap;
+
+export function setActiveMap(mapId = 'facility') {
+  currentMapId = mapId;
+  currentMapConfig = getMapConfig(mapId);
+  const rows = currentMapConfig.MAP_ROWS;
+  for (let r = 0; r < ROWS; r++) {
+    const rowStr = rows[r] || '#'.repeat(COLS);
+    for (let c = 0; c < COLS; c++) {
+      GRID[r][c] = rowStr[c] || '#';
+    }
+  }
+  FLOOR_CELLS.length = 0;
+  for (let row = 0; row < ROWS; row += 1) {
+    for (let col = 0; col < COLS; col += 1) {
+      if (isFloor(col, row)) FLOOR_CELLS.push({ col, row });
+    }
+  }
+}
 
 const inBounds = (col, row) => col >= 0 && row >= 0 && col < COLS && row < ROWS;
 
@@ -334,6 +284,56 @@ export function chooseLumenKeyCell({
   return { ...pool[Math.floor(random() * pool.length)] };
 }
 
+/**
+ * Pick a random walkable spawn cell for the monster, guaranteed to be far from the player
+ * and out of direct sight, so the player never spawns next to the creature.
+ * @param {{col:number, row:number}} playerCell
+ * @param {number} minSteps minimum walking steps away (default: 16)
+ * @param {Function} random random number generator (default: Math.random)
+ * @returns {{col:number, row:number}}
+ */
+export function chooseMonsterSpawnCell({
+  playerCell,
+  minSteps = 12,
+  random = Math.random,
+} = {}) {
+  const from = playerCell || { col: 13, row: 12 };
+  const dist = floorDistances(from);
+  const pWorld = cellToWorld(from.col, from.row);
+
+  const candidates = [];
+  let farthest = null;
+  let farthestSteps = -1;
+
+  for (const cell of FLOOR_CELLS) {
+    const idx = indexOf(cell.col, cell.row);
+    const steps = dist[idx];
+    if (steps < 0) continue;
+    if (tileAt(cell.col, cell.row) === 'D') continue;
+
+    if (steps > farthestSteps) {
+      farthestSteps = steps;
+      farthest = cell;
+    }
+
+    if (steps < minSteps) continue;
+
+    const cWorld = cellToWorld(cell.col, cell.row);
+    const worldDist = Math.hypot(cWorld.x - pWorld.x, cWorld.z - pWorld.z);
+    if (worldDist < 12) continue; // at least 12m euclidean
+
+    // Avoid direct line of sight with player spawn
+    if (hasLineOfSight(pWorld.x, pWorld.z, cWorld.x, cWorld.z)) continue;
+
+    candidates.push(cell);
+  }
+
+  if (candidates.length > 0) {
+    return { ...candidates[Math.floor(random() * candidates.length)] };
+  }
+  return farthest ? { ...farthest } : { ...from };
+}
+
 /* ---------------------------------------------------------------------------
    Geometry construction
 --------------------------------------------------------------------------- */
@@ -495,8 +495,8 @@ function collectWalls() {
     }
   }
 
-  // The creature wakes in the generator room, guarding the only way out.
-  enemy = { col: 7, row: 7 };
+  // The creature wakes according to map layout (e.g. generator room on facility, central hub on sewers, atrium on archive).
+  enemy = currentMapConfig.ENEMY_SPAWN ? { ...currentMapConfig.ENEMY_SPAWN } : { col: 7, row: 7 };
   if (isSolid(enemy.col, enemy.row)) {
     enemy = randomFloorCell(mulberry32(7));
   }
@@ -520,7 +520,11 @@ function collectWalls() {
  * @param {THREE.Scene} scene
  * @param {object} quality one of QUALITY.high / QUALITY.low
  */
-export function buildLevel(scene, quality) {
+export function buildLevel(scene, quality, mapId = DEFAULT_MAP_ID) {
+  setActiveMap(mapId);
+  const mapConfig = getMapConfig(mapId);
+  const theme = mapConfig.THEME || {};
+  const wallH = mapConfig.WALL_HEIGHT || theme.wallHeight || WALL_H;
   const parts = collectWalls();
   const rng = mulberry32(20261016);
   const group = new THREE.Group();
@@ -528,8 +532,8 @@ export function buildLevel(scene, quality) {
   const disposables = [];
   const colliders = [];
 
-  scene.background = new THREE.Color(0x040506);
-  scene.fog = new THREE.FogExp2(0x05070a, quality.fogDensity);
+  scene.background = new THREE.Color(theme.background ?? 0x06090e);
+  scene.fog = new THREE.FogExp2(theme.fogColor ?? 0x091018, quality.fogDensity);
 
   const track = (resource) => {
     disposables.push(resource);
@@ -541,6 +545,12 @@ export function buildLevel(scene, quality) {
   const wallMat = track(
     new THREE.MeshStandardMaterial({ map: TEX.wallTexture(), roughness: 0.98, metalness: 0.02 })
   );
+  if (mapId === 'sewers') {
+    wallMat.color.setHex(0x556b5a);
+  } else if (mapId === 'archive') {
+    wallMat.color.setHex(0x6a503a);
+  }
+
   // The shared textures are cloned so the larger facility can set its own repeat.
   // Repeat density matches the original 63 m floor (10 repeats) and ceiling (14 repeats).
   const floorMap = track(TEX.floorTexture().clone());
@@ -555,6 +565,13 @@ export function buildLevel(scene, quality) {
   const ceilMat = track(
     new THREE.MeshStandardMaterial({ map: ceilMap, roughness: 1, metalness: 0 })
   );
+  if (mapId === 'sewers') {
+    floorMat.color.setHex(0x324036);
+    ceilMat.color.setHex(0x223028);
+  } else if (mapId === 'archive') {
+    floorMat.color.setHex(0x483626);
+    ceilMat.color.setHex(0x261e16);
+  }
   const metalMat = track(
     new THREE.MeshStandardMaterial({
       map: TEX.metalTexture(),
@@ -598,7 +615,7 @@ export function buildLevel(scene, quality) {
   const ceilGeo = track(new THREE.PlaneGeometry(COLS * CELL, ROWS * CELL));
   const ceiling = new THREE.Mesh(ceilGeo, ceilMat);
   ceiling.rotation.x = Math.PI / 2;
-  ceiling.position.set(gridCentre.x, WALL_H, gridCentre.z);
+  ceiling.position.set(gridCentre.x, wallH, gridCentre.z);
   group.add(ceiling);
 
   /* --------------------------------- walls -------------------------------- */
@@ -614,9 +631,9 @@ export function buildLevel(scene, quality) {
   walls.castShadow = quality.shadows;
   wallCells.forEach((cell, i) => {
     const { x, z } = cellToWorld(cell.col, cell.row);
-    dummy.position.set(x, WALL_H / 2, z);
+    dummy.position.set(x, wallH / 2, z);
     const jitter = 0.94 + rng() * 0.06;
-    dummy.scale.set(CELL * jitter, WALL_H, CELL * jitter);
+    dummy.scale.set(CELL * jitter, wallH, CELL * jitter);
     dummy.rotation.set(0, 0, 0);
     dummy.updateMatrix();
     walls.setMatrixAt(i, dummy.matrix);
@@ -721,12 +738,12 @@ export function buildLevel(scene, quality) {
     pipeSpots.forEach((spot, i) => {
       const { x, z } = cellToWorld(spot.col, spot.row);
       const offset = CELL / 2 - 0.28;
-      dummy.position.set(x + spot.dc * offset, WALL_H - 0.55, z + spot.dr * offset);
+      dummy.position.set(x + spot.dc * offset, wallH - 0.55, z + spot.dr * offset);
       dummy.scale.set(0.085, CELL, 0.085);
       dummy.rotation.set(0, 0, 0);
       if (spot.axis === 'z') dummy.rotation.x = Math.PI / 2;
       else dummy.rotation.z = Math.PI / 2;
-      dummy.position.y = WALL_H - 0.4 - rng() * 0.3;
+      dummy.position.y = wallH - 0.4 - rng() * 0.3;
       dummy.updateMatrix();
       pipes.setMatrixAt(i, dummy.matrix);
     });
@@ -746,7 +763,7 @@ export function buildLevel(scene, quality) {
     const beams = new THREE.InstancedMesh(boxGeo, metalMat, beamSpots.length);
     beamSpots.forEach((spot, i) => {
       const { x, z } = cellToWorld(spot.col, spot.row);
-      dummy.position.set(x, WALL_H - 0.16, z);
+      dummy.position.set(x, wallH - 0.16, z);
       dummy.scale.set(spot.axis === 'z' ? CELL : 0.34, 0.3, spot.axis === 'z' ? 0.34 : CELL);
       dummy.rotation.set(0, 0, 0);
       dummy.updateMatrix();
@@ -851,12 +868,12 @@ export function buildLevel(scene, quality) {
     const span = CELL - 0.12;
     const frame = new THREE.Group();
     const lintel = new THREE.Mesh(track(new THREE.BoxGeometry(0.34, 0.42, span + 0.34)), doorMat);
-    lintel.position.y = WALL_H - 0.21;
+    lintel.position.y = wallH - 0.21;
     frame.add(lintel);
-    const jambGeo = track(new THREE.BoxGeometry(0.5, WALL_H, 0.24));
+    const jambGeo = track(new THREE.BoxGeometry(0.5, wallH, 0.24));
     for (const side of [-1, 1]) {
       const jamb = new THREE.Mesh(jambGeo, doorMat);
-      jamb.position.set(0, WALL_H / 2, (side * span) / 2);
+      jamb.position.set(0, wallH / 2, (side * span) / 2);
       jamb.castShadow = quality.shadows;
       frame.add(jamb);
     }
@@ -873,18 +890,46 @@ export function buildLevel(scene, quality) {
     group.add(frame);
   }
 
-  // Hospital dressing: beds, trolleys, wheelchairs, IV stands, curtains and AC units.
-  buildWardProps({
-    group,
-    colliders,
-    track,
-    quality,
-    rng,
-    cellToWorld,
-    isSolid,
-    beds: parts.beds,
-    trolleys: parts.trolleys,
-  });
+  // Map-specific dressing
+  if (mapId === 'sewers') {
+    buildSewerProps({
+      group,
+      colliders,
+      track,
+      quality,
+      rng,
+      cellToWorld,
+      isSolid,
+      beds: parts.beds,
+      trolleys: parts.trolleys,
+      wallH,
+    });
+  } else if (mapId === 'archive') {
+    buildArchiveProps({
+      group,
+      colliders,
+      track,
+      quality,
+      rng,
+      cellToWorld,
+      isSolid,
+      beds: parts.beds,
+      trolleys: parts.trolleys,
+      wallH,
+    });
+  } else {
+    buildWardProps({
+      group,
+      colliders,
+      track,
+      quality,
+      rng,
+      cellToWorld,
+      isSolid,
+      beds: parts.beds,
+      trolleys: parts.trolleys,
+    });
+  }
 
   /* ------------------------------- fixtures ------------------------------- */
 
@@ -896,22 +941,27 @@ export function buildLevel(scene, quality) {
   parts.fixtures.forEach((cell, i) => {
     const { x, z } = cellToWorld(cell.col, cell.row);
     const active = i < fixtureLimit;
+    const fixtureColor = theme.fixtureColor ?? 0xbcd6ea;
+    const fixtureEmissive = theme.fixtureEmissive ?? 0x9fc4e0;
+    const fixtureDist = theme.fixtureDistance ?? (wallH > 4.0 ? 22 : 15);
+    const fixtureIntensity = theme.fixtureIntensity ?? 7;
+
     const emissiveMat = track(
       new THREE.MeshStandardMaterial({
         color: 0x1b1e21,
-        emissive: 0x9fc4e0,
+        emissive: fixtureEmissive,
         emissiveIntensity: 1.4,
         roughness: 0.4,
         metalness: 0.2,
       })
     );
     const housing = new THREE.Mesh(track(new THREE.BoxGeometry(1.7, 0.14, 0.5)), emissiveMat);
-    housing.position.set(x, WALL_H - 0.12, z);
+    housing.position.set(x, wallH - 0.12, z);
     housing.rotation.y = isSolid(cell.col, cell.row - 1) || isSolid(cell.col, cell.row + 1) ? 0 : Math.PI / 2;
     group.add(housing);
 
-    const light = new THREE.PointLight(0xbcd6ea, active ? 7 : 0, 15, 1.7);
-    light.position.set(x, WALL_H - 0.4, z);
+    const light = new THREE.PointLight(fixtureColor, active ? fixtureIntensity : 0, fixtureDist, 1.7);
+    light.position.set(x, wallH - 0.4, z);
     light.castShadow = false;
     group.add(light);
     if (!active) {
@@ -961,10 +1011,10 @@ export function buildLevel(scene, quality) {
       })
     );
     const housing = new THREE.Mesh(track(new THREE.BoxGeometry(1.1, 0.16, 0.4)), redMat);
-    housing.position.set(x, WALL_H - 0.55, z);
+    housing.position.set(x, wallH - 0.55, z);
     housing.rotation.y = rotationY;
     const cage = new THREE.Mesh(track(new THREE.BoxGeometry(1.2, 0.05, 0.48)), metalMat);
-    cage.position.set(x, WALL_H - 0.65, z);
+    cage.position.set(x, wallH - 0.65, z);
     cage.rotation.y = rotationY;
     const light = new THREE.PointLight(
       LIGHTING.redColor,
@@ -972,7 +1022,7 @@ export function buildLevel(scene, quality) {
       LIGHTING.redDistance,
       LIGHTING.redDecay
     );
-    light.position.set(x, WALL_H - 0.75, z);
+    light.position.set(x, wallH - 0.75, z);
     light.castShadow = false;
     light.visible = active;
     housing.visible = active;
@@ -1001,7 +1051,7 @@ export function buildLevel(scene, quality) {
   const dustSeed = mulberry32(4711);
   for (let i = 0; i < dustCount; i += 1) {
     dustPositions[i * 3] = (dustSeed() - 0.5) * 12;
-    dustPositions[i * 3 + 1] = 0.2 + dustSeed() * (WALL_H - 0.6);
+    dustPositions[i * 3 + 1] = 0.2 + dustSeed() * (wallH - 0.6);
     dustPositions[i * 3 + 2] = (dustSeed() - 0.5) * 12;
     dustBase[i * 3] = dustSeed() * Math.PI * 2;
     dustBase[i * 3 + 1] = 0.1 + dustSeed() * 0.4;
@@ -1089,12 +1139,16 @@ export function buildLevel(scene, quality) {
 
   /* ------------------------------ blast door ------------------------------ */
 
-  const exitDoor = buildBlastDoor(group, parts.exitCells, track, quality);
+  const exitDoor = buildBlastDoor(group, parts.exitCells, track, quality, wallH);
 
   /* -------------------------------- lighting ------------------------------ */
 
-  const ambient = new THREE.AmbientLight(0x27333d, 0.42);
-  const hemi = new THREE.HemisphereLight(0x1a2430, 0x05070a, 0.4);
+  const ambient = new THREE.AmbientLight(theme.ambientColor ?? 0x384a5c, theme.ambientIntensity ?? 0.75);
+  const hemi = new THREE.HemisphereLight(
+    theme.hemiSky ?? 0x283848,
+    theme.hemiGround ?? 0x10161e,
+    theme.hemiIntensity ?? 0.65
+  );
   group.add(ambient, hemi);
 
   group.traverse((child) => {
@@ -1321,6 +1375,8 @@ export function buildLevel(scene, quality) {
   const cctvAnchor = new THREE.Vector3(77.6, 1.0, 21.0);
 
   return {
+    mapConfig,
+    maintenanceSpots: mapConfig.MAINTENANCE_SPOTS || MAINTENANCE_SPOTS,
     group,
     colliders,
     cctvConsole: { anchor: cctvAnchor },
@@ -1351,7 +1407,7 @@ export function buildLevel(scene, quality) {
    generator room. Red while sealed, green once the key is used.
 --------------------------------------------------------------------------- */
 
-function buildBlastDoor(parent, cells, track, quality) {
+function buildBlastDoor(parent, cells, track, quality, wallH = WALL_H) {
   const doorGroup = new THREE.Group();
   doorGroup.name = 'exit-door';
 
@@ -1401,8 +1457,8 @@ function buildBlastDoor(parent, cells, track, quality) {
   sill.position.set(centerX, 0.07, centerZ - 0.1);
   doorGroup.add(sill);
   for (const side of [-1, 1]) {
-    const jamb = new THREE.Mesh(track(new THREE.BoxGeometry(0.36, WALL_H, 0.52)), frameMat);
-    jamb.position.set(centerX + (side * (opening + 0.34)) / 2, WALL_H / 2, centerZ - 0.1);
+    const jamb = new THREE.Mesh(track(new THREE.BoxGeometry(0.36, wallH, 0.52)), frameMat);
+    jamb.position.set(centerX + (side * (opening + 0.34)) / 2, wallH / 2, centerZ - 0.1);
     jamb.castShadow = quality.shadows;
     doorGroup.add(jamb);
   }

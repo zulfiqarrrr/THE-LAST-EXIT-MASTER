@@ -11,7 +11,7 @@
    ========================================================================== */
 
 import { CELL } from './config.js';
-import { COLS, GRID, ROWS, cellToWorld, isSolid } from './level.js';
+import { COLS, GRID, ROWS, cellToWorld, isSolid, currentMapConfig } from './level.js';
 
 /** Cells the player can make out from where they stand (line of sight applies). */
 const SIGHT_RADIUS = 7;
@@ -59,6 +59,8 @@ const SOLID = new Uint8Array(CELLS);
 const DOOR = new Uint8Array(CELLS);
 const AREA_AT = new Array(CELLS);
 let FLOOR_TOTAL = 0;
+let activeAreas = AREAS;
+const WARD_BOXES = new Map();
 
 function wardForCell(col, row) {
   if (row >= 19) return 'SOUTH SECTION';
@@ -72,32 +74,42 @@ function fallbackArea(col, row) {
   return corridorFallback.get(ward);
 }
 
-for (let row = 0; row < ROWS; row++) {
-  for (let col = 0; col < COLS; col++) {
-    const idx = row * COLS + col;
-    SOLID[idx] = isSolid(col, row) ? 1 : 0;
-    DOOR[idx] = GRID[row][col] === 'D' ? 1 : 0;
-    if (!SOLID[idx]) FLOOR_TOTAL++;
-    const area = AREAS.find(
-      (a) => col >= a.rect[0] && col <= a.rect[2] && row >= a.rect[1] && row <= a.rect[3]
-    );
-    AREA_AT[idx] = area || fallbackArea(col, row);
+export function rebuildMapGrid(config = currentMapConfig) {
+  const areas = (config && config.AREAS) || AREAS;
+  activeAreas = areas;
+
+  SOLID.fill(0);
+  DOOR.fill(0);
+  AREA_AT.length = 0;
+  FLOOR_TOTAL = 0;
+  WARD_BOXES.clear();
+
+  for (const area of activeAreas) {
+    const [c0, r0, c1, r1] = area.rect;
+    const box = WARD_BOXES.get(area.ward) || [Infinity, Infinity, -Infinity, -Infinity];
+    box[0] = Math.min(box[0], c0);
+    box[1] = Math.min(box[1], r0);
+    box[2] = Math.max(box[2], c1);
+    box[3] = Math.max(box[3], r1);
+    WARD_BOXES.set(area.ward, box);
+  }
+
+  for (let row = 0; row < ROWS; row++) {
+    for (let col = 0; col < COLS; col++) {
+      const idx = row * COLS + col;
+      SOLID[idx] = isSolid(col, row) ? 1 : 0;
+      DOOR[idx] = GRID[row][col] === 'D' ? 1 : 0;
+      if (!SOLID[idx]) FLOOR_TOTAL++;
+      const area = activeAreas.find(
+        (a) => col >= a.rect[0] && col <= a.rect[2] && row >= a.rect[1] && row <= a.rect[3]
+      );
+      AREA_AT[idx] = area || fallbackArea(col, row);
+    }
   }
 }
 
-/* -------------------------------- helpers -------------------------------- */
-
-/** Bounding box of every named ward, used for its always-visible heading. */
-const WARD_BOXES = new Map();
-for (const area of AREAS) {
-  const [c0, r0, c1, r1] = area.rect;
-  const box = WARD_BOXES.get(area.ward) || [Infinity, Infinity, -Infinity, -Infinity];
-  box[0] = Math.min(box[0], c0);
-  box[1] = Math.min(box[1], r0);
-  box[2] = Math.max(box[2], c1);
-  box[3] = Math.max(box[3], r1);
-  WARD_BOXES.set(area.ward, box);
-}
+// Initial build
+rebuildMapGrid(currentMapConfig);
 
 const LABEL_FONT = 'ui-monospace, SFMono-Regular, Menlo, Consolas, monospace';
 
@@ -232,8 +244,14 @@ export class FacilityMap {
     this._fullH = 0;
   }
 
+  rebuildGrid(config) {
+    rebuildMapGrid(config || currentMapConfig);
+    this._resizeDimensions();
+  }
+
   /** Forget everything discovered and reveal the player's surroundings. Call on a new run. */
   reset(player) {
+    rebuildMapGrid(currentMapConfig);
     this.discovered.fill(0);
     this.visible.fill(0);
     this._visibleList.length = 0;
@@ -583,7 +601,7 @@ export class FacilityMap {
 
     // Room names, centred on each room's footprint.
     ctx.textAlign = 'center';
-    for (const area of AREAS) {
+    for (const area of activeAreas) {
       const [c0, r0, c1, r1] = area.rect;
       const rw = c1 - c0 + 1;
       const rh = r1 - r0 + 1;

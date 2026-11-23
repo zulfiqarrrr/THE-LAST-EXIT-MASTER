@@ -900,6 +900,772 @@ __lastExit.game.teleportCreature(col,row)  // move the creature to a map cell
 - **Next recommended task:** render the Warden alone in a dedicated viewer (paused loop, fixed camera) to check the
   palette, then tune the masks.
 
+### 2026-11-22 — Quadruped Stalking Motion, Camera & Player Smoothing, Bug Fixes (BUG 1-4)
+- **Work completed:**
+  - **Cloned & curated external motion skills** into `references/skills/`: `motionmaxxing`, `motion-design-skill`, `blender-skills`, `cinetic`, `effectcraft`, `anidoodle`, `huashu-art-motion`, `mg-styles-15`, `reanimate`, and `remotion-skills`. Installed `tweakpane` and `three.quarks`.
+  - **Warden Locomotion Redesign (`src/game/warden-model.js`):** Replaced simplistic symmetric sine crawl with realistic asymmetric quadruped gait (64% stance ground-drive, 36% fast forward swing snap). Added diagonal trot offsets (FR, HL, FL, HR), lateral spine undulation (`spineYaw`), lateral claw sweep, cornering lean based on `yawRate`, and predatory gaze stabilization keeping the head fixated on the player while the torso bobs/rolls.
+  - **Player & Camera Smoothing (`src/game/player.js`):** Added double-harmonic footstrike dip and organic mid-stride rise (`_bobPhase * 2` + `_bobPhase`), lateral camera sway, and full `prefers-reduced-motion` compliance.
+  - **Fixed BUG-1 (Landscape Rotation Hint):** Hint re-evaluated immediately upon entering `playing` state and on `_resize()` in `src/game/game.js`.
+  - **Fixed BUG-2 (HUD/Joystick Overlap):** Added explicit `body.is-touch .hud__bottom` padding in `src/styles/responsive.css` so fine-pointer touch devices/hybrid laptops clear the stick.
+  - **Fixed BUG-3 (Clean Death Cinematic):** Hidden `.touch` buttons/stick and `.minimap` during `.is-caught` in `src/styles/game-ui.css`.
+  - **Fixed BUG-4 (Uncancelled Audio Timeout):** Stored `_unlockTimeout` in `src/game/interactions.js` and cleared on `reset()`/`dispose()`.
+- **Files modified:** `src/game/warden-model.js`, `src/game/player.js`, `src/game/game.js`, `src/game/interactions.js`, `src/styles/responsive.css`, `src/styles/game-ui.css`, `package.json`, `package-lock.json`, `PROJECT_HANDOFF.md`.
+- **Tests performed and results:**
+  - `npm run check:map` → **PASS, exit 0** (41x27, 425 walkable cells).
+  - `npm run build` → **exit 0** (31 modules, 0 warnings, 0 errors).
+- **Remaining issues:** Volume control slider & audio buses in pause menu (§8 Accessibility).
+- **Next recommended task:** Add in-game audio volume control slider and optional Tweakpane visual debugging.
+
+### 2026-11-22 — Monster Footstep Sliding Fix, Organic Voice Synthesis, Environment Visibility & Brightness Overhaul
+- **Work completed:**
+  - **Fixed Monster Floor Sliding (`src/game/enemy.js`):** In `_animate()`, tied `_gait` phase strictly to physical floor displacement (`moveDist / STRIDE_CYCLE * 2π`) rather than an arbitrary delta-time increment. When stationary, `_gait` is frozen in place with zero foot sliding, settling smoothly to rest while idle breathing and twitches play.
+  - **Quadruped Heavy Footsteps (`src/game/enemy.js`, `src/game/audio.js`):** As the creature crawls across the floor, footfalls trigger every 0.5m of ground displacement via `this._cue('step')`. Synthesized physical sub-bass floor thuds (sine pitch drops 68Hz -> 26Hz) layered with claw scrapes (bandpass noise), fully distance-attenuated with distance to player.
+  - **Organic Creature Vocalization Overhaul (`src/game/audio.js`):** Replaced the electronic sawtooth lowpass filter drop ("zuummm" synth sound) with biological guttural acoustic synthesis:
+    1. FM modulation with 26-32 Hz vocal-fold flutter LFO modulating the fundamental pitch for raw, visceral throat rattle.
+    2. Dual acoustic formant bandpass filters (throat F1 ~290-340 Hz and pharynx F2 ~780-860 Hz) modeling real organic vocal tract physics.
+    3. Deep sub-bass chest rumble (30-48 Hz sine) providing physical low-end weight in speakers/headphones.
+    4. Salivary breath aspiration and wet rasping noise.
+    5. Soft-saturation wave-shaping (`Math.tanh`) introducing harmonic warmth and preventing synthetic harshness.
+    6. Upgraded `groan()` with dual formants and slow shudder vibrato.
+  - **Environment Visibility & Darkness Overhaul (`src/game/config.js`, `src/game/level.js`, `src/game/player.js`, `src/game/game.js`):**
+    - Reduced `fogDensity` from 0.058 (high) / 0.048 (low) to 0.028 / 0.022 so long corridors remain readable and atmospheric rather than vanishing into a pitch-black wall 15m away.
+    - Updated fog tint from pure pitch-black `0x05070a` to dark medical blue-grey `0x091018`.
+    - Boosted facility ambient lighting from 0.42 to 0.75 (`0x384a5c`) and hemisphere light from 0.4 to 0.65 (`0x283848` / `0x10161e`).
+    - Increased player personal fill light from 2.2 / 7m to 4.2 / 10m (`0xa8bed2`) so immediate navigation is never completely blind.
+    - Upgraded torch beam in `config.js`: intensity from 15 to 28 candela, distance from 30m to 42m, angle from 0.46 to 0.60 rad (widening the narrow tunnel cone), and penumbra to 0.65.
+    - Raised renderer `toneMappingExposure` from 1.12 to 1.28.
+- **Files modified:** `src/game/enemy.js`, `src/game/audio.js`, `src/game/config.js`, `src/game/level.js`, `src/game/player.js`, `src/game/game.js`, `PROJECT_HANDOFF.md`, `docs/PROJECT_HANDOFF.md`.
+- **Tests performed and results:**
+  - `npm run check:map` → **PASS, exit 0** (41x27, 425 walkable cells).
+  - `npm run build` → **exit 0** (31 modules, 0 warnings, 0 errors).
+- **Next recommended task:** Add in-game audio volume control sliders and sound bus controls in pause menu.
+
+### 2026-11-22 — Monster Navigation Obstacle Clearance & Horror Visual Redesign
+- **Work completed:**
+  - **Fixed Monster Getting Wedged on Obstacles (`src/game/config.js`, `src/game/enemy.js`):**
+    - Reduced oversized `ENEMY.radius` from 1.0m to 0.58m and `ENEMY.wallClearance` from 1.45m to 0.98m.
+    - Previously, in a 3.0m corridor, 1.45m wall clearance on both sides left only 0.10m of free path, causing the monster to freeze and wedge on any floor obstacle (lockers, crates, barrels, beds). With 0.98m clearance and 0.58m hull, it has over 1.0m of navigable clearance and slides past obstacles without getting trapped.
+    - Reduced `_beginSidestep()` probe from 0.95m to 0.65m so unsticking maneuvers find free space instead of penetrating opposite walls.
+  - **Complete Monster Visual & Horror Shader Redesign (`src/game/warden-model.js`):**
+    - Fixed bleached chalk-white mannequin / marshmallow appearance: replaced 80%+ luminance ivory base with deep necrotic corpse hide (shadowed charcoal-taupe `#2B2827`, necrotic olive-grey, and bruised plum undertones).
+    - Fixed white shoulder tubes / spikes: added procedural shoulder quill masks rendering as weathered, tarnished containment steel and calcified bone with dried dark blood stains (not white skin).
+    - Fixed white spaghetti drool: added chin tendril mask rendering as dark, wet, glistening coagulated gore/viscera (`roughness = 0.20`, not white pasta).
+    - Fixed cartoon red dot eyes: replaced with deep sunken black necrotic orbital sockets and piercing feral glowing pupils.
+    - Restored sculpt micro-detail: blended 55% of the model's baked 2048x2048 sculpt texture to retain skin pores, wrinkles, and muscle striations under lighting.
+- **Files modified:** `src/game/config.js`, `src/game/enemy.js`, `src/game/warden-model.js`, `PROJECT_HANDOFF.md`, `docs/PROJECT_HANDOFF.md`.
+- **Tests performed and results:**
+  - `npm run check:map` → **PASS, exit 0** (41x27, 425 walkable cells).
+  - `npm run build` → **exit 0** (31 modules, 0 warnings, 0 errors).
+- **Next recommended task:** Test live encounter in dev server (`http://127.0.0.1:5178`) and tune audio volume UI.
+
+### 2026-11-22 — Kill Jumpscare Audio Overhaul, Authentic Sculpted Face & Silky-Smooth Locomotion
+- **Work completed:**
+  - **Eliminated Synthetic/AI Jumpscare Sound (`src/game/audio.js`):**
+    - Replaced raw 300Hz->24Hz sawtooth electronic arcade drop in `caught()` with visceral multi-layer horror acoustics: heavy sub-bass bone-crunching impact (pitch drop 95Hz->22Hz with saturation), tearing gore/flesh-rip transient filter, and FM-modulated predatory death screech through dual throat formants.
+    - Upgraded `stinger()` with dissonant tritone horror chord and shock impact noise.
+  - **Authentic Face & Head Redesign (`src/game/warden-model.js`):**
+    - Eliminated artificial geometric math circles (fake procedural eye dots and box teeth) that distorted across the 3D mesh.
+    - Grounded the creature's face directly in the model's authentic 2048x2048 sculpted UV albedo, preserving natural anatomical eye sockets, snout, and teeth.
+    - Deepened mouth interior into an occluded dark gore void, keeping wet specular sheen on mouth and tendrils.
+  - **Silky-Smooth Predatory Pathing & Turning (`src/game/enemy.js`):**
+    - Added lookahead corner smoothing in `_followPath()`: when within 1.6m of a waypoint, smoothly blends trajectory toward the next waypoint, turning harsh 90-degree tile corners into natural predator curves.
+    - Replaced abrupt heading snaps in `_step()` with exponential yaw damping (`wrapAngle` at rate 11), ensuring continuous, fluid rotation through doorways and turns.
+- **Files modified:** `src/game/audio.js`, `src/game/warden-model.js`, `src/game/enemy.js`, `PROJECT_HANDOFF.md`, `docs/PROJECT_HANDOFF.md`.
+- **Tests performed and results:**
+  - `npm run check:map` → **PASS, exit 0** (41x27, 425 walkable cells).
+  - `npm run build` → **exit 0** (31 modules, 0 warnings, 0 errors).
+- **Next recommended task:** Playtest map traversal across all 3 sublevels in live browser session.
+
+### 2026-11-23 — Dedicated Fullscreen 3D Monster Inspector (Turntable Viewer)
+- **Work completed:**
+  - **In-App Pure 3D Turntable Viewer (`src/game/monster-inspector.js`):**
+    - Created dedicated Three.js 3D inspection stage with 360-degree orbital rotation (mouse drag / touch), zoom (scroll wheel / pinch), and pan.
+    - Features circular illuminated stage pedestal with bioluminescent perimeter ring.
+    - Loads and animates the exact production 3D rigs and shaders for all 3 specialized monsters:
+      - **The Warden (Sublevel 4):** Procedural skin weights, necrotic corpse skin, obsidian claws, and 4-legged prowl kinematics.
+      - **The Crawler (Sublevel 7):** 10-segmented body with transverse S-curve sinusoidal undulation, articulated twitching mandibles, and pulsing green veins.
+      - **The Archivist (Sublevel 1):** 2.6m tall 4-armed skeletal rig with mantis scythes, parchment skin, and glowing amber eye sockets.
+    - Floating UI controls: switch monster [1-3], toggle animation mode (Walk, Idle, Aggro, Freeze), toggle auto turntable rotate, switch lighting (Studio inspection vs Flashlight horror), reset camera, and exit.
+  - **UI Integration (`index.html`, `src/main.js`, `src/styles/inspector.css`):**
+    - Added "VIEW 3D MONSTERS" button to website landing hero.
+    - Added "VIEW 3D MONSTER" button to the sector deployment modal (`#map-select`).
+    - Added URL query param support: `?monsters=1` or `?view=monsters` or `?monsters=crawler` opens the 3D viewer directly on page load.
+    - Exposed `window.__lastExit.inspectMonsters(monsterId)`.
+- **Files modified / created:**
+  - Created: `viewer.html`, `src/viewer.js`, `src/game/monster-inspector.js`, `src/styles/inspector.css`.
+  - Modified: `vite.config.js`, `index.html`, `src/main.js`, `PROJECT_HANDOFF.md`.
+- **Tests performed and results:**
+  - `npm run check:map` → **PASS, exit 0**.
+  - `node scripts/test-maps.mjs` → **All 3 maps PASS, exit 0**.
+  - `npm run build` → **exit 0** (46 modules transformed, multi-page production build for `index.html` and `viewer.html`).
+- **Next recommended task:** Playtest in live browser session across desktop and mobile viewports.
+
+### 2026-11-23 — Multi-Format 3D Model Distribution & T-Pose Mixamo Pipeline
+- **Work completed:**
+  - Generated dedicated **T-Pose** (cross-format hands spread horizontally, standing upright) models for Mixamo auto-rigging:
+    - **The Archivist T-Pose:** `public/models/archivist_tpose.obj` (96KB), `archivist_tpose.glb`, `archivist_tpose.blend`. Standing upright bipedal ($2.6\text{m}$ tall) with arms spread horizontally at $90^\circ$ cross-format for instant Mixamo marker placement.
+    - **The Warden Beast T-Pose:** `public/models/warden_tpose.obj` (21.4MB), `warden_tpose.glb`, `warden_tpose.blend`. Re-oriented upright bipedal beast stance on hind legs with front limbs extended horizontally at $90^\circ$ cross-format for Mixamo rigging.
+  - Script created: `scripts/blender/generate_tpose_models.py`.
+- **Files modified / created:**
+  - Created: `scripts/blender/generate_tpose_models.py`, `public/models/*tpose*`, `blender/*tpose*`.
+  - Modified: `PROJECT_HANDOFF.md`.
+- **Tests performed and results:**
+  - Blender headless T-pose generation → **PASS, exit 0**.
+  - `npm run check:map` → **PASS, exit 0**.
+  - `npm run build` → **PASS, exit 0**.
+- **Next recommended task:** User uploads `archivist_tpose.obj` or `warden_tpose.obj` to Mixamo.
+
+
+
+
+
+
+
+
+### 2026-11-23 — Warden Model Color Integration & Anatomically Isolated Procedural Rig
+- **Work completed:**
+  - **Fixed Missing Painted Colors Bug:** In Three.js `GLTFLoader`, glTF's secondary vertex color attribute `COLOR_1` is mapped to `geometry.attributes.color_1` (without leading underscore). Previous code checked `_color_1`, leaving the mesh with `COLOR_0` (all-white blank mannequin). Updated to `geometry.attributes.color_1 || geometry.attributes._color_1` and copied directly to `geometry.attributes.color`. User's custom hand-painted charcoal skin and blood-red mouth/gore now render vibrantly.
+  - **Fixed Mesh Node Elevation Offset:** Neutralized Blender object translation (`The_Warden_Furious` node had $Y = 0.85\text{m}$ baked in) with `mesh.position.set(0, 0, 0)` so creature contact with the floor is exact ($Y=0$) in both gameplay and the 3D Monster Inspector.
+  - **Anatomically Isolated Procedural Rigging:** Overhauled `computeSkinWeights()` in `src/game/warden-model.js`. Implemented sagittal plane isolation (right arms/legs never pull left vertices, left limbs never pull right vertices), anterior/posterior separation (forelimbs do not influence hips), and absolute head/snout isolation (shoulders and claws have 0% influence on head/mouth). Eliminated rubbery tearing and head distortion.
+  - **Tuned Quadruped Locomotion Kinematics:** Recalibrated `crawlGait` stride amplitude in `WardenRig.update()` to natural quadruped stalking bounds ($0.08 + 0.18s\text{ rad}$, foreleg lift $0.16s$, hind drive $0.85\times$), with realistic neck stabilization and spine undulation.
+- **Files modified:**
+  - `src/game/warden-model.js`
+  - `src/game/monster-inspector.js`
+  - `PROJECT_HANDOFF.md`
+- **Bugs fixed:**
+  - User painted colors not rendering (white mannequin bug).
+  - Warden limbs twisting and tearing the head apart during locomotion.
+  - Warden mesh elevation offset clipping/floating on stage.
+- **Tests performed and results:**
+  - `npm run check:map` → **PASS, exit 0**.
+  - `npm run build` → **PASS, exit 0** (46 modules transformed).
+  - Dev server hot reloaded.
+- **Next recommended task:** Preview updated Warden in Monster Inspector (`http://127.0.0.1:5179/` or `viewer.html`).
+
+### 2026-11-23 — Warden Turntable Floor Alignment & Luminous Gore Emissive Shader
+- **Work completed:**
+  - **Fixed Floor Submersion in Turntable Viewer (`viewer.js`):** In `src/viewer.js`, `warden.object.position.set(0, 0, 0)` had wiped out the model's vertical standing position ($Y = 0.868\text{m}$), causing the entire lower half of the Warden (feet, claws, and lower belly) to be submerged inside the stage cylinder. Fixed by preserving `position.y` with `warden.object.position.x = 0; warden.object.position.z = 0;`. Claws and paws now stand cleanly on top of the stage platform.
+  - **Luminous Gore & Eye Emissive Shader Enhancement:** Added custom emissive radiance detection in `patchSkinning()` for vertex-colored meshes:
+    ```glsl
+    diffuseColor.rgb = pow(vColor.rgb, vec3(1.4));
+    float isGore = clamp((vColor.r - max(vColor.g, vColor.b) * 1.4) * 2.5, 0.0, 1.0);
+    totalEmissiveRadiance += vColor.rgb * isGore * 2.4;
+    ```
+    This eliminates washed-out grey tones from tone mapping, restores deep pitch charcoal body skin, and makes the painted crimson mouth, dripping gore, and red eyes glow with radiant intensity under all lighting conditions.
+- **Files modified:**
+  - `src/viewer.js`
+  - `src/game/warden-model.js`
+  - `PROJECT_HANDOFF.md`
+- **Bugs fixed:**
+  - Warden feet and claws submerged beneath the stage in `viewer.html`.
+  - Pale washed-out vertex colors and dim gore.
+- **Tests performed and results:**
+  - `npm run check:map` → **PASS, exit 0**.
+  - `npm run build` → **PASS, exit 0** (46 modules transformed).
+- **Next recommended task:** Provide the user with the direct Blender download and painting guide for The Crawler and The Archivist.
+
+### 2026-11-23 — High-Detail Sculpted Meshes & Painting Setup for The Archivist & Crawler
+- **Work completed:**
+  - **Rebuilt The Archivist from Scratch (Blender 5.3):** Replaced primitive geometric blocks with a 24,244-vertex seamless, watertight, sculpted horror biped ($2.6\text{m}$ tall) featuring emaciated ribcage, exposed elongated vertebrae, two curved mantis scythe blades, two secondary thoracic claws, hollow sunken skull with deep eye sockets, and talon feet. Applied Voxel Remesh to eliminate all internal geometry. Pre-painted with bone, blade obsidian, and glowing amber ember eye sockets.
+  - **Rebuilt The Crawler from Scratch (Blender 5.3):** Replaced 54 loose disconnected primitive objects with a 17,092-vertex seamless, single-manifold armored serpent ($4.5\text{m}$ long) featuring shovel-head carapace, articulated sickle mandibles with inner teeth, 10 overlapping dorsal armor plates, spine spikes, lateral crawling scutes, and recessed bioluminescent vein channels.
+  - **Pre-Configured Vertex Color Pipeline:** Pre-initialized `Color` attribute on both models and hooked directly into Principled BSDF `Base Color` so opening the `.blend` in Blender 5.3 shows full PBR material colors immediately in Material Preview, ready for single-click paint strokes without setup friction.
+  - **Exported Formats:** Generated complete `.blend`, `.glb`, and `.obj` sets for both creatures in `public/models/`.
+- **Files modified / created:**
+  - Created: `scripts/build_master_monsters.py`, `scripts/inspect_models.mjs`.
+  - Updated: `public/models/the_archivist.*`, `public/models/archivist_tpose.*`, `public/models/the_crawler.*`.
+  - Modified: `PROJECT_HANDOFF.md`.
+- **Tests performed and results:**
+  - Headless Blender 5.3 generation → **PASS, exit 0**.
+  - `npm run check:map` → **PASS, exit 0**.
+  - `npm run build` → **PASS, exit 0**.
+- **Next recommended task:** User opens `.blend` files in Blender 5.3 to paint custom colors.
+
+### 2026-11-23 — User Painted Crawler GLB Integration & Real-time Serpentine Slither Shader
+- **Work completed:**
+  - **Inspected User's Painted Crawler:** Verified `public/models/the_crawler.glb` exported by user at 18:59. Extracted 17,092 vertices with user's custom painted `COLOR_0` attribute: 710 bright emerald bio-veins, 417 custom painted red accents/gore, and dark chitin carapace.
+  - **Connected GLB Loader in `crawler-model.js`:** Added `loadCrawlerModel()` with fallback to procedural model. Configured PBR material with user's exact vertex colors.
+  - **Implemented GPU Serpentine S-Curve Deformation Shader:** Patched vertex shader with smooth mathematical transverse sine wave kinematics ($0.32$ amplitude taper, undulating S-curves running from head to tail).
+  - **Luminous Bio-Emerald & Crimson Emissive Radiance:** Shader boosts contrast with `pow(vColor.rgb, vec3(1.2))` and adds radiant emissive intensity to the emerald green veins ($3.2\times$) and the user's custom red gore accents ($2.8\times$).
+  - **Connected Turntable & Inspector:** Updated `viewer.js` and `monster-inspector.js` to asynchronously load and display the user's painted GLB Crawler.
+- **Files modified:**
+  - `src/game/creatures/crawler-model.js`
+  - `src/viewer.js`
+  - `src/game/monster-inspector.js`
+  - `PROJECT_HANDOFF.md`
+- **Tests performed and results:**
+  - Node GLB parse test → **PASS, exit 0**.
+  - `npm run check:map` → **PASS, exit 0**.
+  - `npm run build` → **PASS, exit 0** (46 modules transformed).
+- **Next recommended task:** User checks `viewer.html` to see their custom painted Crawler slithering on the turntable stage.
+
+### 2026-11-23 — Authentic Mantis Stance Archivist Sculpt & Full Pipeline Integration
+- **Work completed:**
+  - **Eliminated Stick-Figure T-Pose:** Completely scrapped the unnatural scarecrow T-pose. Sculpted the true terrifying horror stance in Blender 5.3:
+    - Towering $2.6\text{m}$ predatory apparition in hunched forward stalking posture.
+    - Elongated S-curve spine with protruding dorsal vertebrae spikes.
+    - Two massive overhead Mantis Scythe Arms raised high above the head, poised to strike with long razor curved sickle blades.
+    - Two folded thoracic secondary grasping claws across the chest.
+    - Sunken skull with gaping jaw, needle fangs, and deep hollow eye sockets.
+    - Digitigrade predatory legs with backward hocks and triple raptor ground talons.
+    - Voxel Remeshed into a single, seamless, watertight organic sculpt (24,996 vertices).
+  - **Pre-Configured Color Attributes:** Pre-painted desiccated mummy parchment skin, bone highlights, obsidian metal scythe blades, and glowing amber fire ember eye sockets.
+  - **Exported Formats:** Saved to `public/models/the_archivist.blend`, `the_archivist.glb`, `archivist_tpose.blend`, `archivist_tpose.glb`, `archivist_tpose.obj`.
+  - **Connected Game & Viewer Loaders:** Added `loadArchivistModel()` with PBR material, amber eye emissive glow, and blood-edge radiance in `archivist-model.js`, `viewer.js`, and `monster-inspector.js`.
+- **Files modified / created:**
+  - Created: `scripts/build_authentic_archivist.py`.
+  - Updated: `public/models/the_archivist.*`, `public/models/archivist_tpose.*`, `src/game/creatures/archivist-model.js`, `src/viewer.js`, `src/game/monster-inspector.js`.
+  - Modified: `PROJECT_HANDOFF.md`.
+- **Tests performed and results:**
+  - Headless Blender 5.3 generation → **PASS, exit 0**.
+  - `npm run check:map` → **PASS, exit 0**.
+  - `npm run build` → **PASS, exit 0** (46 modules transformed).
+- **Next recommended task:** User re-opens `the_archivist.blend` in Blender to inspect the mantis sculpt and paint.
+
+### 2026-11-23 — User Custom Paint Integration for The Archivist
+- **Work completed:**
+  - **Inspected User's Saved Blend:** Read `public/models/the_archivist.blend` modified by user at 7:46 PM ($4.41\text{MB}$).
+  - **Custom Paint Applied:** User painted the Winged Horror with:
+    - Deep crimson devil body, arms, and torso.
+    - Demonic piercing yellow eyes with sharp brows.
+    - Sharp white fangs in the mouth.
+    - Dark obsidian wing spars, leathery wings, and claws.
+  - **Exported glTF Pipeline:** Headless exported `public/models/the_archivist.glb` and `public/models/archivist_tpose.glb` ($5.99\text{MB}$) preserving `COLOR_0`.
+  - **Enhanced Creature Shader:** Updated `src/game/creatures/archivist-model.js` with yellow-eye radiance ($3.5\times$), crimson skin emissive pop ($1.5\times$), and deep horror contrast curve.
+- **Files modified / created:**
+  - Updated: `public/models/the_archivist.glb`, `public/models/archivist_tpose.glb`, `src/game/creatures/archivist-model.js`.
+  - Modified: `PROJECT_HANDOFF.md`.
+- **Tests performed and results:**
+  - Blender headless GLB export & test render (`user_archivist_render.png`) → **PASS, exit 0**.
+  - `npm run check:map` → **PASS, exit 0**.
+  - `npm run build` → **PASS, exit 0** (46 modules transformed).
+  - Dev server active at `http://127.0.0.1:5178/`.
+- **Next recommended task:** Play and test all 3 custom-painted monsters in active gameplay runs.
+
+### 2026-11-23 — Walking and Aggro Kinematics Engine for The Archivist
+- **Work completed:**
+  - **Identified Missing Animation Pipeline:** The GLB branch in `archivist-model.js` previously only updated time uniforms without any vertex shader deformation or rig kinematics, leaving the creature frozen during walk/aggro modes.
+  - **Engineered GPU Vertex Shader Kinematics (`archivistDeform`):**
+    - **Bat Wing Aerodynamic Flap & Billow:** Menacing rhythmic flap ($3.2\text{Hz}$, $15^\circ$ arc) in idle/walk; hyper-aggressive violent beat ($6.8\text{Hz}$, $32^\circ$ arc) during chase/aggro with $+0.65\text{m}$ forward predatory wing flare to envelop prey. Includes secondary leathery membrane wave billow along finger struts.
+    - **Predatory Digitigrade Leg Stride:** Alternating bipedal stepping stride with foot planting and knee lift ($0.28\text{m}$ stride length).
+    - **Clawed Arms & Talons:** Natural swing during stride, lunging forward $+0.45\text{m}$ with hooked talons in aggro.
+    - **Demonic Head & Jaw Aggro:** Predatory forward thrust ($+0.42\text{m}$), dropping down with vicious feral snarl twitching ($32\text{Hz}$).
+  - **Dynamic Shadow Synchronization:** Added `customDepthMaterial` with matching `archivistDeform(position)` vertex shader so facility shadows cast by the monster flap and stalk in real time.
+  - **Creature Factory & Prewarming:** Updated `factory.js` and `main.js` to prewarm and utilize `getLoadedArchivistModel()` and `getLoadedCrawlerModel()` so custom GLBs immediately run in both Sublevel gameplay and the 3D Inspector.
+- **Files modified:**
+  - `src/game/creatures/archivist-model.js`
+  - `src/game/creatures/crawler-model.js`
+  - `src/game/creatures/factory.js`
+  - `src/main.js`
+  - `src/viewer.js`
+  - `src/game/monster-inspector.js`
+  - `PROJECT_HANDOFF.md`
+- **Tests performed and results:**
+  - `npm run check:map` → **PASS, exit 0**.
+  - `npm run build` → **PASS, exit 0** (46 modules transformed).
+  - Dev server active at `http://127.0.0.1:5178/`.
+- **Next recommended task:** Test walk, run, and aggro animations in viewer and active Sublevel 1 gameplay.
+
+### 2026-11-23 — Fixed Archivist Visibility: Resolved Shader Syntax Error & Mesh Selector
+- **Work completed:**
+  - **Identified Cause of Invisibility:**
+    1. A duplicate `return vec3(x, y, z); }` block was present at the end of the `archivistDeform` GLSL function, which caused a WebGL vertex shader compilation syntax error, causing Three.js to fail rendering the material.
+    2. Guarded `vColor` references in fragment shader with `#if defined( USE_COLOR )` to ensure syntax safety across all hardware environments.
+    3. Updated the GLTF mesh traversal in `loadArchivistModel()` to select the mesh with the highest vertex count (`maxVerts`), ensuring it always binds to `The_Winged_Horror` (99.8k verts) and never falls victim to stray scene nodes.
+- **Files modified:**
+  - `src/game/creatures/archivist-model.js`
+  - `PROJECT_HANDOFF.md`
+- **Tests performed and results:**
+  - `npm run check:map` → **PASS, exit 0**.
+  - `npm run build` → **PASS, exit 0** (46 modules transformed).
+  - Dev server active at `http://127.0.0.1:5178/`.
+- **Next recommended task:** Verify in browser at `viewer.html?monster=archivist`.
+
+### 2026-11-23 — Creature-Centric Map Redesign & Multi-Map Engine Architecture
+- **Work completed:**
+  - **Dynamic Level Architecture (`level.js`):**
+    - Refactored all geometry construction (pipes, beams, sliding door frames, lighting fixtures, emergency cages, dust volume, blast door jambs) to scale with dynamic map ceiling height `wallH`.
+    - Integrated map-specific lighting color, reach, and falloff:
+      - Sublevel 4 (The Warden): Clinical hospital ward (3.0m ceiling, blue-tinted overhead fixtures, hospital beds & trolleys).
+      - Sublevel 7 (The Crawler): Claustrophobic low-ceiling drainage network (2.5m ceiling, toxic teal `0x76e2a2` lighting, winding aqueduct canals, sludge cisterns).
+      - Sublevel 1 (The Archivist): Gothic cathedral research archive (5.0m soaring vaulted ceiling, warm amber `0xffc477` lighting with 22m reach, towering 3.8m bookcase labyrinth, open flight atrium).
+  - **Thematic Map Generation & Alignment:**
+    - Authored and verified `src/game/maps/map-sewers.js` and `src/game/maps/map-archive.js` with exact blast-door anchor alignment at `(6,4)` and `(7,4)`, 22 maintenance hiding spots each, and tailored enemy spawns.
+  - **Dynamic Map Discovery & Minimap Engine (`map.js`):**
+    - Implemented `rebuildMapGrid(config)` so `SOLID`, `DOOR`, `AREA_AT`, `FLOOR_TOTAL`, and `WARD_BOXES` recompute dynamically on map switch.
+    - Updated minimap and full-screen map to render real thematic room names ("PUMP CISTERN", "GRAND READING ATRIUM", "TOWERING BOOK STACKS", etc.) and ward boundaries.
+  - **Multi-Map Automated Sanity Check (`scripts/check-map.mjs`):**
+    - Expanded `npm run check:map` to validate all three maps in one pass: rectangular bounds, row lengths, spawn connectivity, key reachability, fixture access, blast door anchors, bed/trolley clearances, and creature pathing to all key spots.
+- **Files modified:**
+  - `src/game/level.js`
+  - `src/game/map.js`
+  - `src/game/game.js`
+  - `src/game/maps/map-sewers.js`
+  - `src/game/maps/map-archive.js`
+  - `scripts/check-map.mjs`
+  - `PROJECT_HANDOFF.md`
+- **Tests performed and results:**
+  - `npm run check:map` → **ALL MAPS PASS (Sublevel 4, Sublevel 7, Sublevel 1), exit 0**.
+  - `npm run build` → **PASS, exit 0** (46 modules transformed).
+  - Dev server active at `http://127.0.0.1:5178/`.
+- **Remaining issues:** None.
+- **Next recommended task:** Play through Sublevel 7 (The Crawler) and Sublevel 1 (The Archivist) in the live browser.
+
+### 2026-11-23 — Randomized Distant Monster Spawning & Spawn Safety Protection
+- **Work completed:**
+  - **Identified Spawn Proximity Bug:** On Sublevel 7 and Sublevel 1, the creature spawn was pinned to fixed coordinates (e.g. col 12 row 7) only a few tiles away from the player spawn (col 9 row 6), causing the monster to spawn immediately adjacent to the player and trigger instant death.
+  - **Engineered Dynamic Spawn Selector (`chooseMonsterSpawnCell`):**
+    - Computes full BFS walking distances (`floorDistances`) from the player's spawn.
+    - Filters candidate floor cells requiring:
+      1. Minimum 18 walking steps distance (`minSteps >= 18`).
+      2. Minimum 18 meters Euclidean direct distance.
+      3. No direct line-of-sight with player (`!hasLineOfSight`).
+      4. Not a doorway tile (`tileAt !== 'D'`).
+    - Randomly picks from the distant candidates on each run/restart.
+  - **Repositioned Author Fallback Spawns:** Updated fallback spawns in `map-sewers.js` to East Cistern `(32, 8)` and `map-archive.js` to South Vaults `(20, 23)`.
+- **Files modified:**
+  - `src/game/level.js`
+  - `src/game/game.js`
+  - `src/game/maps/map-sewers.js`
+  - `src/game/maps/map-archive.js`
+  - `PROJECT_HANDOFF.md`
+- **Tests performed and results:**
+  - `npm run check:map` → **PASS, exit 0**.
+  - `npm run build` → **PASS, exit 0** (46 modules transformed).
+  - Dev server active at `http://127.0.0.1:5178/`.
+- **Next recommended task:** Enjoy surviving in Sublevel 7 and Sublevel 1!
+
+### 2026-11-23 — Hard Labyrinth Map Overhaul & Monster Lifecycle/Facing Fixes
+- **Work completed:**
+  - **Hard Labyrinth Map Generation:**
+    - Redesigned Sublevel 7 (Drainage Network) and Sublevel 1 (Research Archive) from wide open halls into tight, confusing, claustrophobic labyrinths:
+      - Sublevel 7: Winding serpentine canal switchbacks, pipe conduits, and pump cisterns (531 walkable cells).
+      - Sublevel 1: Dense towering bookcase stack aisles, catalog rotunda aisles, and locked manuscript carrels (519 walkable cells).
+    - Reduced walkable floor space to match the tight, tense atmosphere of Sublevel 4 (425 cells) instead of the previous open 660+ cell layouts.
+  - **Fixed Monster Disappearing / Not Spawning in Last 2 Modes:**
+    - Fixed cached GLB geometry disposal in `src/game/creatures/factory.js`: when switching levels or resetting, `crawler.isGlb` and `archivist.isGlb` instances now use a no-op `dispose: () => {}` (matching `wardenModel`), preventing WebGL GPU buffer destruction.
+  - **Fixed Monster Facing Direction:**
+    - In `crawler-model.js` and `archivist-model.js`, applied `mesh.rotation.y = Math.PI` so that the monsters face forward along the $-Z$ movement direction rather than moving backwards tail-first.
+  - **Balanced Spawn Distances:**
+    - Tuned `chooseMonsterSpawnCell` in `src/game/level.js` to place the monster 12–18 walking steps away behind blind corners/walls, ensuring the monster is immediately audible and stalking the player without instant line-of-sight death or 70m dead-zone isolation.
+- **Files modified:**
+  - `src/game/maps/map-sewers.js`
+  - `src/game/maps/map-archive.js`
+  - `src/game/creatures/factory.js`
+  - `src/game/creatures/crawler-model.js`
+  - `src/game/creatures/archivist-model.js`
+  - `src/game/level.js`
+  - `scripts/design_hard_labyrinth_maps.py`
+  - `PROJECT_HANDOFF.md`
+- **Tests performed and results:**
+  - `scripts/design_hard_labyrinth_maps.py` → Validated both grids (0 unreachable cells, enemy spawns 30+ steps away, 24 distributed key hiding spots).
+  - Multi-map simulation via node → All 3 maps verified (`facility`: 425 floor cells / 17 step spawn dist, `sewers`: 531 floor cells / 17 step spawn dist, `archive`: 519 floor cells / 29 step spawn dist).
+  - `npm run check:map` → **PASS, exit 0**.
+  - `npm run build` → **PASS, exit 0** (46 modules transformed).
+  - Dev server active at `http://127.0.0.1:5178/`.
+- **Remaining issues:** None.
+- **Next recommended task:** Play through Sublevel 7 and Sublevel 1 on the live dev server!
+
+<!--
+  TEMPLATE FOR FUTURE ENTRIES — append a new section above this comment after every meaningful change:
+
+### 2026-11-23 — 3-Map Architecture Refactor & Interactive Map Selection UI (Phases 1 & 2)
+- **Work completed:**
+  - **Modular Multi-Map Architecture (Phase 1):**
+    - Extracted level definitions into modular configuration architecture: `src/game/maps/map-facility.js` (Sublevel 4), `src/game/maps/map-sewers.js` (Sublevel 7), `src/game/maps/map-archive.js` (Sublevel 1), and `src/game/maps/index.js` (registry).
+    - Updated `src/game/config.js` with `MAPS` metadata export (sublevels, difficulty ratings, specimen classifications, atmospheric lore).
+    - Upgraded `src/game/level.js` with `buildLevel(scene, quality, mapId)` supporting per-map atmosphere, fog density, custom background, ambient light and hemisphere sky/ground colors while preserving 100% backwards compatibility.
+    - Updated `src/game/game.js` with dynamic map loading (`setMap(mapId)`), constructor support for `mapId`, and `startRun(mapId)`.
+  - **High-Tech Sector Selection UI (Phase 2):**
+    - Added `#map-select` modal in `index.html` with sci-fi terminal styling (`src/styles/map-select.css`) featuring responsive card layout, threat classification badges, and keyboard navigation ([1-3], arrow keys, Enter to descend, Escape to dismiss).
+    - Created `src/game/map-select-ui.js` controller featuring real-time animated procedural 2D radar/scan previews for each sublevel (radar sweep for Facility, undulating S-curve ripples for Sewers, dust-mote column stacks for Archive).
+    - Connected `src/main.js` so clicking any "PLAY NOW" button opens the sector deployment modal, allowing instant selection or switching.
+- **Files modified / created:**
+  - Created: `src/game/maps/map-facility.js`, `src/game/maps/map-sewers.js`, `src/game/maps/map-archive.js`, `src/game/maps/index.js`, `src/game/map-select-ui.js`, `src/styles/map-select.css`.
+  - Modified: `src/game/config.js`, `src/game/level.js`, `src/game/game.js`, `src/main.js`, `index.html`, `PROJECT_FILE_LIST.txt`, `PROJECT_HANDOFF.md`.
+- **Tests performed and results:**
+  - `npm run check:map` → **PASS, exit 0** (all 425 walkable cells reachable, blast door original cells confirmed).
+  - `npm run build` → **exit 0** (37 modules transformed, clean production bundling).
+- **Next recommended task:** Phase 3 — Implement THE CRAWLER specialized monster procedural rig & bio-luminescent locomotion for Sublevel 7 Sewers.
+
+### 2026-11-23 — Distinct Map Layouts & Specialized Procedural Monsters (Crawler & Archivist)
+- **Work completed:**
+  - **Dynamic In-Place Grid Swapping (`src/game/level.js`):**
+    - Added `setActiveMap(mapId)` which mutates the shared navigation `GRID` and `FLOOR_CELLS` dynamically so collision detection, BFS pathfinding, line-of-sight checks, and prop spawners always use the active map's grid.
+    - Updated `buildLevel()` to apply map-specific wall heights (`wallH = 2.85m` for Sewers, `3.8m` for Archive), custom wall/floor/ceiling color tints (mossy green for Sewers, aged mahogany for Archive), and map-specific maintenance key hiding spots.
+  - **3 Truly Distinct Map Layouts & Props:**
+    - **Sublevel 4 (Medical Facility):** Original hospital ring corridor, clinical wards, beds, trolleys, cold steel fluorescents, red emergency beacons.
+    - **Sublevel 7 (Drainage Network):** 415 floor cells connected. Winding drainage canals, sluice chambers, pump wells, sludge vats, rusted pipe conduits (`buildSewerProps`), murky green-black fog (`0x05130a`).
+    - **Sublevel 1 (Research Archive):** 451 floor cells connected. Grand reading rotunda, long parallel book stack aisles, 2.8m tall wooden bookshelves (`buildArchiveProps`), study tables with lamps, sepia dust fog (`0x18120b`).
+  - **3 Specialized Unique Monsters:**
+    - **The Warden (Sublevel 4):** Hunched quadruped with necrotic corpse hide, obsidian claws, and heavy gait.
+    - **The Crawler (Sublevel 7 - `src/game/creatures/crawler-model.js`):** 10-segment serpentine predator with undulating sinusoidal body-wave physics (`CrawlerRig`), eyeless spade head, articulated twitching mandibles, chitinous skin with pulsing green bioluminescent vein nodes.
+    - **The Archivist (Sublevel 1 - `src/game/creatures/archivist-model.js`):** 2.6m tall 4-armed bipedal monstrosity with mantis-like multi-jointed arms, parchment skin, sunken amber hollow eyes, asymmetric stalking gait with dipping spine and reaching arms (`ArchivistRig`).
+  - **Creature Factory & Dynamic Swapping (`src/game/creatures/factory.js`, `src/game/enemy.js`, `src/game/game.js`):**
+    - `Creature` dynamically loads and swaps between Warden, Crawler, and Archivist rigs and models via `setMonster()`.
+    - Added specialized Web Audio synthesis in `src/game/audio.js`: `crawlerSlither` & `crawlerHiss` for The Crawler; `archivistStep` & `archivistWhisper` for The Archivist.
+- **Files modified / created:**
+  - Created: `src/game/creatures/crawler-model.js`, `src/game/creatures/archivist-model.js`, `src/game/creatures/factory.js`, `src/game/map-props.js`, `scripts/test-maps.mjs`.
+  - Modified: `src/game/maps/map-sewers.js`, `src/game/maps/map-archive.js`, `src/game/level.js`, `src/game/enemy.js`, `src/game/audio.js`, `src/game/game.js`, `PROJECT_FILE_LIST.txt`, `PROJECT_HANDOFF.md`.
+- **Tests performed and results:**
+  - `npm run check:map` → **PASS, exit 0**.
+  - `node scripts/test-maps.mjs` → **All 3 maps PASS, exit 0** (Facility: 425 cells, Sewers: 415 cells, Archive: 451 cells; 100% connected).
+  - `npm run build` → **exit 0** (41 modules transformed, clean production build).
+- **Next recommended task:** Playtest map traversal across all 3 sublevels in live browser session.
+
+### 2026-11-23 — Dedicated Fullscreen 3D Monster Inspector (Turntable Viewer)
+- **Work completed:**
+  - **In-App Pure 3D Turntable Viewer (`src/game/monster-inspector.js`):**
+    - Created dedicated Three.js 3D inspection stage with 360-degree orbital rotation (mouse drag / touch), zoom (scroll wheel / pinch), and pan.
+    - Features circular illuminated stage pedestal with bioluminescent perimeter ring.
+    - Loads and animates the exact production 3D rigs and shaders for all 3 specialized monsters:
+      - **The Warden (Sublevel 4):** Procedural skin weights, necrotic corpse skin, obsidian claws, and 4-legged prowl kinematics.
+      - **The Crawler (Sublevel 7):** 10-segmented body with transverse S-curve sinusoidal undulation, articulated twitching mandibles, and pulsing green veins.
+      - **The Archivist (Sublevel 1):** 2.6m tall 4-armed skeletal rig with mantis scythes, parchment skin, and glowing amber eye sockets.
+    - Floating UI controls: switch monster [1-3], toggle animation mode (Walk, Idle, Aggro, Freeze), toggle auto turntable rotate, switch lighting (Studio inspection vs Flashlight horror), reset camera, and exit.
+  - **UI Integration (`index.html`, `src/main.js`, `src/styles/inspector.css`):**
+    - Added "VIEW 3D MONSTERS" button to website landing hero.
+    - Added "VIEW 3D MONSTER" button to the sector deployment modal (`#map-select`).
+    - Added URL query param support: `?monsters=1` or `?view=monsters` or `?monsters=crawler` opens the 3D viewer directly on page load.
+    - Exposed `window.__lastExit.inspectMonsters(monsterId)`.
+- **Files modified / created:**
+  - Created: `viewer.html`, `src/viewer.js`, `src/game/monster-inspector.js`, `src/styles/inspector.css`.
+  - Modified: `vite.config.js`, `index.html`, `src/main.js`, `PROJECT_HANDOFF.md`.
+- **Tests performed and results:**
+  - `npm run check:map` → **PASS, exit 0**.
+  - `node scripts/test-maps.mjs` → **All 3 maps PASS, exit 0**.
+  - `npm run build` → **exit 0** (46 modules transformed, multi-page production build for `index.html` and `viewer.html`).
+- **Next recommended task:** Playtest in live browser session across desktop and mobile viewports.
+
+### 2026-11-23 — Multi-Format 3D Model Distribution & T-Pose Mixamo Pipeline
+- **Work completed:**
+  - Generated dedicated **T-Pose** (cross-format hands spread horizontally, standing upright) models for Mixamo auto-rigging:
+    - **The Archivist T-Pose:** `public/models/archivist_tpose.obj` (96KB), `archivist_tpose.glb`, `archivist_tpose.blend`. Standing upright bipedal ($2.6\text{m}$ tall) with arms spread horizontally at $90^\circ$ cross-format for instant Mixamo marker placement.
+    - **The Warden Beast T-Pose:** `public/models/warden_tpose.obj` (21.4MB), `warden_tpose.glb`, `warden_tpose.blend`. Re-oriented upright bipedal beast stance on hind legs with front limbs extended horizontally at $90^\circ$ cross-format for Mixamo rigging.
+  - Script created: `scripts/blender/generate_tpose_models.py`.
+- **Files modified / created:**
+  - Created: `scripts/blender/generate_tpose_models.py`, `public/models/*tpose*`, `blender/*tpose*`.
+  - Modified: `PROJECT_HANDOFF.md`.
+- **Tests performed and results:**
+  - Blender headless T-pose generation → **PASS, exit 0**.
+  - `npm run check:map` → **PASS, exit 0**.
+  - `npm run build` → **PASS, exit 0**.
+- **Next recommended task:** User uploads `archivist_tpose.obj` or `warden_tpose.obj` to Mixamo.
+
+
+
+
+
+
+### 2026-11-23 — Key Pickup Interaction Bug Fix & 3D Monster Inspector Showcase
+- **Work completed:**
+  - **Key Pickup Interaction Fix (`interactions.js`, `player.js`, `game.js`):**
+    - Fixed vertical camera pitch blindness in `player.isLookingAt()`: previously only checked horizontal XZ forward vector, failing when players looked downwards at floor items ($Y \approx 0.2\text{m}$). Now performs full 3D direct ray alignment against `camera.getWorldDirection()` with horizontal fallback.
+    - Fixed stale anchor reference: `Objectives._findFocus()` now dynamically accesses `this.level.keyAnchor` on every frame, eliminating desynchronization when switching maps or restarting runs.
+    - Added `Objectives.setLevel(newLevel)` which updates both `_keyWorld` and `_cctvAnchor` when `setMap()` is called.
+    - Tuned interaction parameters: increased `KEY_RANGE` from $2.9\text{m} \to 3.2\text{m}$ and lowered `KEY_DOT` from $0.55 \to 0.45$ for immediate, reliable interaction triggering.
+  - **3D Interactive Monster Inspector Showcase:**
+    - Created `monsters-showcase.html` with real-time WebGL orbit inspection, animations (`Walk Cycle`, `Idle Breath`, `Aggro Strike`, `Freeze`), lighting presets (flashlight horror vs studio inspection), and specimen telemetry.
+    - Created `monsters-dossier.md` detailing the 3 specialized monsters, anatomical silhouettes, locomotion physics, and frequency acoustic signatures.
+- **Files modified / created:**
+  - Modified: `src/game/interactions.js`, `src/game/player.js`, `src/game/game.js`, `PROJECT_HANDOFF.md`.
+  - Created: `monsters-showcase.html` (artifact), `monsters-dossier.md` (artifact).
+- **Bugs fixed:**
+  - Fixed issue where player looking directly at the floating/floor maintenance key could not see the pickup prompt or take the key.
+- **Tests performed and results:**
+  - `npm run check:map` → **PASS, exit 0**.
+  - `node scripts/test-maps.mjs` → **All 3 maps PASS, exit 0**.
+  - `npm run build` → **exit 0** (41 modules transformed, clean production build).
+- **Next recommended task:** Playtest map traversal across all 3 sublevels in live browser session.
+
+### 2026-11-23 — Dedicated Fullscreen 3D Monster Inspector (Turntable Viewer)
+- **Work completed:**
+  - **In-App Pure 3D Turntable Viewer (`src/game/monster-inspector.js`):**
+    - Created dedicated Three.js 3D inspection stage with 360-degree orbital rotation (mouse drag / touch), zoom (scroll wheel / pinch), and pan.
+    - Features circular illuminated stage pedestal with bioluminescent perimeter ring.
+    - Loads and animates the exact production 3D rigs and shaders for all 3 specialized monsters:
+      - **The Warden (Sublevel 4):** Procedural skin weights, necrotic corpse skin, obsidian claws, and 4-legged prowl kinematics.
+      - **The Crawler (Sublevel 7):** 10-segmented body with transverse S-curve sinusoidal undulation, articulated twitching mandibles, and pulsing green veins.
+      - **The Archivist (Sublevel 1):** 2.6m tall 4-armed skeletal rig with mantis scythes, parchment skin, and glowing amber eye sockets.
+    - Floating UI controls: switch monster [1-3], toggle animation mode (Walk, Idle, Aggro, Freeze), toggle auto turntable rotate, switch lighting (Studio inspection vs Flashlight horror), reset camera, and exit.
+  - **UI Integration (`index.html`, `src/main.js`, `src/styles/inspector.css`):**
+    - Added "VIEW 3D MONSTERS" button to website landing hero.
+    - Added "VIEW 3D MONSTER" button to the sector deployment modal (`#map-select`).
+    - Added URL query param support: `?monsters=1` or `?view=monsters` or `?monsters=crawler` opens the 3D viewer directly on page load.
+    - Exposed `window.__lastExit.inspectMonsters(monsterId)`.
+- **Files modified / created:**
+  - Created: `viewer.html`, `src/viewer.js`, `src/game/monster-inspector.js`, `src/styles/inspector.css`.
+  - Modified: `vite.config.js`, `index.html`, `src/main.js`, `PROJECT_HANDOFF.md`.
+- **Tests performed and results:**
+  - `npm run check:map` → **PASS, exit 0**.
+  - `node scripts/test-maps.mjs` → **All 3 maps PASS, exit 0**.
+  - `npm run build` → **exit 0** (46 modules transformed, multi-page production build for `index.html` and `viewer.html`).
+- **Next recommended task:** Playtest in live browser session across desktop and mobile viewports.
+
+### 2026-11-23 — Multi-Format 3D Model Distribution & T-Pose Mixamo Pipeline
+- **Work completed:**
+  - Generated dedicated **T-Pose** (cross-format hands spread horizontally, standing upright) models for Mixamo auto-rigging:
+    - **The Archivist T-Pose:** `public/models/archivist_tpose.obj` (96KB), `archivist_tpose.glb`, `archivist_tpose.blend`. Standing upright bipedal ($2.6\text{m}$ tall) with arms spread horizontally at $90^\circ$ cross-format for instant Mixamo marker placement.
+    - **The Warden Beast T-Pose:** `public/models/warden_tpose.obj` (21.4MB), `warden_tpose.glb`, `warden_tpose.blend`. Re-oriented upright bipedal beast stance on hind legs with front limbs extended horizontally at $90^\circ$ cross-format for Mixamo rigging.
+  - Script created: `scripts/blender/generate_tpose_models.py`.
+- **Files modified / created:**
+  - Created: `scripts/blender/generate_tpose_models.py`, `public/models/*tpose*`, `blender/*tpose*`.
+  - Modified: `PROJECT_HANDOFF.md`.
+- **Tests performed and results:**
+  - Blender headless T-pose generation → **PASS, exit 0**.
+  - `npm run check:map` → **PASS, exit 0**.
+  - `npm run build` → **PASS, exit 0**.
+- **Next recommended task:** User uploads `archivist_tpose.obj` or `warden_tpose.obj` to Mixamo.
+
+
+
+
+
+
+
+
+### 2026-11-23 — Warden Model Color Integration & Anatomically Isolated Procedural Rig
+- **Work completed:**
+  - **Fixed Missing Painted Colors Bug:** In Three.js `GLTFLoader`, glTF's secondary vertex color attribute `COLOR_1` is mapped to `geometry.attributes.color_1` (without leading underscore). Previous code checked `_color_1`, leaving the mesh with `COLOR_0` (all-white blank mannequin). Updated to `geometry.attributes.color_1 || geometry.attributes._color_1` and copied directly to `geometry.attributes.color`. User's custom hand-painted charcoal skin and blood-red mouth/gore now render vibrantly.
+  - **Fixed Mesh Node Elevation Offset:** Neutralized Blender object translation (`The_Warden_Furious` node had $Y = 0.85\text{m}$ baked in) with `mesh.position.set(0, 0, 0)` so creature contact with the floor is exact ($Y=0$) in both gameplay and the 3D Monster Inspector.
+  - **Anatomically Isolated Procedural Rigging:** Overhauled `computeSkinWeights()` in `src/game/warden-model.js`. Implemented sagittal plane isolation (right arms/legs never pull left vertices, left limbs never pull right vertices), anterior/posterior separation (forelimbs do not influence hips), and absolute head/snout isolation (shoulders and claws have 0% influence on head/mouth). Eliminated rubbery tearing and head distortion.
+  - **Tuned Quadruped Locomotion Kinematics:** Recalibrated `crawlGait` stride amplitude in `WardenRig.update()` to natural quadruped stalking bounds ($0.08 + 0.18s\text{ rad}$, foreleg lift $0.16s$, hind drive $0.85\times$), with realistic neck stabilization and spine undulation.
+- **Files modified:**
+  - `src/game/warden-model.js`
+  - `src/game/monster-inspector.js`
+  - `PROJECT_HANDOFF.md`
+- **Bugs fixed:**
+  - User painted colors not rendering (white mannequin bug).
+  - Warden limbs twisting and tearing the head apart during locomotion.
+  - Warden mesh elevation offset clipping/floating on stage.
+- **Tests performed and results:**
+  - `npm run check:map` → **PASS, exit 0**.
+  - `npm run build` → **PASS, exit 0** (46 modules transformed).
+  - Dev server hot reloaded.
+- **Next recommended task:** Preview updated Warden in Monster Inspector (`http://127.0.0.1:5179/` or `viewer.html`).
+
+### 2026-11-23 — Warden Turntable Floor Alignment & Luminous Gore Emissive Shader
+- **Work completed:**
+  - **Fixed Floor Submersion in Turntable Viewer (`viewer.js`):** In `src/viewer.js`, `warden.object.position.set(0, 0, 0)` had wiped out the model's vertical standing position ($Y = 0.868\text{m}$), causing the entire lower half of the Warden (feet, claws, and lower belly) to be submerged inside the stage cylinder. Fixed by preserving `position.y` with `warden.object.position.x = 0; warden.object.position.z = 0;`. Claws and paws now stand cleanly on top of the stage platform.
+  - **Luminous Gore & Eye Emissive Shader Enhancement:** Added custom emissive radiance detection in `patchSkinning()` for vertex-colored meshes:
+    ```glsl
+    diffuseColor.rgb = pow(vColor.rgb, vec3(1.4));
+    float isGore = clamp((vColor.r - max(vColor.g, vColor.b) * 1.4) * 2.5, 0.0, 1.0);
+    totalEmissiveRadiance += vColor.rgb * isGore * 2.4;
+    ```
+    This eliminates washed-out grey tones from tone mapping, restores deep pitch charcoal body skin, and makes the painted crimson mouth, dripping gore, and red eyes glow with radiant intensity under all lighting conditions.
+- **Files modified:**
+  - `src/viewer.js`
+  - `src/game/warden-model.js`
+  - `PROJECT_HANDOFF.md`
+- **Bugs fixed:**
+  - Warden feet and claws submerged beneath the stage in `viewer.html`.
+  - Pale washed-out vertex colors and dim gore.
+- **Tests performed and results:**
+  - `npm run check:map` → **PASS, exit 0**.
+  - `npm run build` → **PASS, exit 0** (46 modules transformed).
+- **Next recommended task:** Provide the user with the direct Blender download and painting guide for The Crawler and The Archivist.
+
+### 2026-11-23 — High-Detail Sculpted Meshes & Painting Setup for The Archivist & Crawler
+- **Work completed:**
+  - **Rebuilt The Archivist from Scratch (Blender 5.3):** Replaced primitive geometric blocks with a 24,244-vertex seamless, watertight, sculpted horror biped ($2.6\text{m}$ tall) featuring emaciated ribcage, exposed elongated vertebrae, two curved mantis scythe blades, two secondary thoracic claws, hollow sunken skull with deep eye sockets, and talon feet. Applied Voxel Remesh to eliminate all internal geometry. Pre-painted with bone, blade obsidian, and glowing amber ember eye sockets.
+  - **Rebuilt The Crawler from Scratch (Blender 5.3):** Replaced 54 loose disconnected primitive objects with a 17,092-vertex seamless, single-manifold armored serpent ($4.5\text{m}$ long) featuring shovel-head carapace, articulated sickle mandibles with inner teeth, 10 overlapping dorsal armor plates, spine spikes, lateral crawling scutes, and recessed bioluminescent vein channels.
+  - **Pre-Configured Vertex Color Pipeline:** Pre-initialized `Color` attribute on both models and hooked directly into Principled BSDF `Base Color` so opening the `.blend` in Blender 5.3 shows full PBR material colors immediately in Material Preview, ready for single-click paint strokes without setup friction.
+  - **Exported Formats:** Generated complete `.blend`, `.glb`, and `.obj` sets for both creatures in `public/models/`.
+- **Files modified / created:**
+  - Created: `scripts/build_master_monsters.py`, `scripts/inspect_models.mjs`.
+  - Updated: `public/models/the_archivist.*`, `public/models/archivist_tpose.*`, `public/models/the_crawler.*`.
+  - Modified: `PROJECT_HANDOFF.md`.
+- **Tests performed and results:**
+  - Headless Blender 5.3 generation → **PASS, exit 0**.
+  - `npm run check:map` → **PASS, exit 0**.
+  - `npm run build` → **PASS, exit 0**.
+- **Next recommended task:** User opens `.blend` files in Blender 5.3 to paint custom colors.
+
+### 2026-11-23 — User Painted Crawler GLB Integration & Real-time Serpentine Slither Shader
+- **Work completed:**
+  - **Inspected User's Painted Crawler:** Verified `public/models/the_crawler.glb` exported by user at 18:59. Extracted 17,092 vertices with user's custom painted `COLOR_0` attribute: 710 bright emerald bio-veins, 417 custom painted red accents/gore, and dark chitin carapace.
+  - **Connected GLB Loader in `crawler-model.js`:** Added `loadCrawlerModel()` with fallback to procedural model. Configured PBR material with user's exact vertex colors.
+  - **Implemented GPU Serpentine S-Curve Deformation Shader:** Patched vertex shader with smooth mathematical transverse sine wave kinematics ($0.32$ amplitude taper, undulating S-curves running from head to tail).
+  - **Luminous Bio-Emerald & Crimson Emissive Radiance:** Shader boosts contrast with `pow(vColor.rgb, vec3(1.2))` and adds radiant emissive intensity to the emerald green veins ($3.2\times$) and the user's custom red gore accents ($2.8\times$).
+  - **Connected Turntable & Inspector:** Updated `viewer.js` and `monster-inspector.js` to asynchronously load and display the user's painted GLB Crawler.
+- **Files modified:**
+  - `src/game/creatures/crawler-model.js`
+  - `src/viewer.js`
+  - `src/game/monster-inspector.js`
+  - `PROJECT_HANDOFF.md`
+- **Tests performed and results:**
+  - Node GLB parse test → **PASS, exit 0**.
+  - `npm run check:map` → **PASS, exit 0**.
+  - `npm run build` → **PASS, exit 0** (46 modules transformed).
+- **Next recommended task:** User checks `viewer.html` to see their custom painted Crawler slithering on the turntable stage.
+
+### 2026-11-23 — Authentic Mantis Stance Archivist Sculpt & Full Pipeline Integration
+- **Work completed:**
+  - **Eliminated Stick-Figure T-Pose:** Completely scrapped the unnatural scarecrow T-pose. Sculpted the true terrifying horror stance in Blender 5.3:
+    - Towering $2.6\text{m}$ predatory apparition in hunched forward stalking posture.
+    - Elongated S-curve spine with protruding dorsal vertebrae spikes.
+    - Two massive overhead Mantis Scythe Arms raised high above the head, poised to strike with long razor curved sickle blades.
+    - Two folded thoracic secondary grasping claws across the chest.
+    - Sunken skull with gaping jaw, needle fangs, and deep hollow eye sockets.
+    - Digitigrade predatory legs with backward hocks and triple raptor ground talons.
+    - Voxel Remeshed into a single, seamless, watertight organic sculpt (24,996 vertices).
+  - **Pre-Configured Color Attributes:** Pre-painted desiccated mummy parchment skin, bone highlights, obsidian metal scythe blades, and glowing amber fire ember eye sockets.
+  - **Exported Formats:** Saved to `public/models/the_archivist.blend`, `the_archivist.glb`, `archivist_tpose.blend`, `archivist_tpose.glb`, `archivist_tpose.obj`.
+  - **Connected Game & Viewer Loaders:** Added `loadArchivistModel()` with PBR material, amber eye emissive glow, and blood-edge radiance in `archivist-model.js`, `viewer.js`, and `monster-inspector.js`.
+- **Files modified / created:**
+  - Created: `scripts/build_authentic_archivist.py`.
+  - Updated: `public/models/the_archivist.*`, `public/models/archivist_tpose.*`, `src/game/creatures/archivist-model.js`, `src/viewer.js`, `src/game/monster-inspector.js`.
+  - Modified: `PROJECT_HANDOFF.md`.
+- **Tests performed and results:**
+  - Headless Blender 5.3 generation → **PASS, exit 0**.
+  - `npm run check:map` → **PASS, exit 0**.
+  - `npm run build` → **PASS, exit 0** (46 modules transformed).
+- **Next recommended task:** User re-opens `the_archivist.blend` in Blender to inspect the mantis sculpt and paint.
+
+### 2026-11-23 — User Custom Paint Integration for The Archivist
+- **Work completed:**
+  - **Inspected User's Saved Blend:** Read `public/models/the_archivist.blend` modified by user at 7:46 PM ($4.41\text{MB}$).
+  - **Custom Paint Applied:** User painted the Winged Horror with:
+    - Deep crimson devil body, arms, and torso.
+    - Demonic piercing yellow eyes with sharp brows.
+    - Sharp white fangs in the mouth.
+    - Dark obsidian wing spars, leathery wings, and claws.
+  - **Exported glTF Pipeline:** Headless exported `public/models/the_archivist.glb` and `public/models/archivist_tpose.glb` ($5.99\text{MB}$) preserving `COLOR_0`.
+  - **Enhanced Creature Shader:** Updated `src/game/creatures/archivist-model.js` with yellow-eye radiance ($3.5\times$), crimson skin emissive pop ($1.5\times$), and deep horror contrast curve.
+- **Files modified / created:**
+  - Updated: `public/models/the_archivist.glb`, `public/models/archivist_tpose.glb`, `src/game/creatures/archivist-model.js`.
+  - Modified: `PROJECT_HANDOFF.md`.
+- **Tests performed and results:**
+  - Blender headless GLB export & test render (`user_archivist_render.png`) → **PASS, exit 0**.
+  - `npm run check:map` → **PASS, exit 0**.
+  - `npm run build` → **PASS, exit 0** (46 modules transformed).
+  - Dev server active at `http://127.0.0.1:5178/`.
+- **Next recommended task:** Play and test all 3 custom-painted monsters in active gameplay runs.
+
+### 2026-11-23 — Walking and Aggro Kinematics Engine for The Archivist
+- **Work completed:**
+  - **Identified Missing Animation Pipeline:** The GLB branch in `archivist-model.js` previously only updated time uniforms without any vertex shader deformation or rig kinematics, leaving the creature frozen during walk/aggro modes.
+  - **Engineered GPU Vertex Shader Kinematics (`archivistDeform`):**
+    - **Bat Wing Aerodynamic Flap & Billow:** Menacing rhythmic flap ($3.2\text{Hz}$, $15^\circ$ arc) in idle/walk; hyper-aggressive violent beat ($6.8\text{Hz}$, $32^\circ$ arc) during chase/aggro with $+0.65\text{m}$ forward predatory wing flare to envelop prey. Includes secondary leathery membrane wave billow along finger struts.
+    - **Predatory Digitigrade Leg Stride:** Alternating bipedal stepping stride with foot planting and knee lift ($0.28\text{m}$ stride length).
+    - **Clawed Arms & Talons:** Natural swing during stride, lunging forward $+0.45\text{m}$ with hooked talons in aggro.
+    - **Demonic Head & Jaw Aggro:** Predatory forward thrust ($+0.42\text{m}$), dropping down with vicious feral snarl twitching ($32\text{Hz}$).
+  - **Dynamic Shadow Synchronization:** Added `customDepthMaterial` with matching `archivistDeform(position)` vertex shader so facility shadows cast by the monster flap and stalk in real time.
+  - **Creature Factory & Prewarming:** Updated `factory.js` and `main.js` to prewarm and utilize `getLoadedArchivistModel()` and `getLoadedCrawlerModel()` so custom GLBs immediately run in both Sublevel gameplay and the 3D Inspector.
+- **Files modified:**
+  - `src/game/creatures/archivist-model.js`
+  - `src/game/creatures/crawler-model.js`
+  - `src/game/creatures/factory.js`
+  - `src/main.js`
+  - `src/viewer.js`
+  - `src/game/monster-inspector.js`
+  - `PROJECT_HANDOFF.md`
+- **Tests performed and results:**
+  - `npm run check:map` → **PASS, exit 0**.
+  - `npm run build` → **PASS, exit 0** (46 modules transformed).
+  - Dev server active at `http://127.0.0.1:5178/`.
+- **Next recommended task:** Test walk, run, and aggro animations in viewer and active Sublevel 1 gameplay.
+
+### 2026-11-23 — Fixed Archivist Visibility: Resolved Shader Syntax Error & Mesh Selector
+- **Work completed:**
+  - **Identified Cause of Invisibility:**
+    1. A duplicate `return vec3(x, y, z); }` block was present at the end of the `archivistDeform` GLSL function, which caused a WebGL vertex shader compilation syntax error, causing Three.js to fail rendering the material.
+    2. Guarded `vColor` references in fragment shader with `#if defined( USE_COLOR )` to ensure syntax safety across all hardware environments.
+    3. Updated the GLTF mesh traversal in `loadArchivistModel()` to select the mesh with the highest vertex count (`maxVerts`), ensuring it always binds to `The_Winged_Horror` (99.8k verts) and never falls victim to stray scene nodes.
+- **Files modified:**
+  - `src/game/creatures/archivist-model.js`
+  - `PROJECT_HANDOFF.md`
+- **Tests performed and results:**
+  - `npm run check:map` → **PASS, exit 0**.
+  - `npm run build` → **PASS, exit 0** (46 modules transformed).
+  - Dev server active at `http://127.0.0.1:5178/`.
+- **Next recommended task:** Verify in browser at `viewer.html?monster=archivist`.
+
+### 2026-11-23 — Creature-Centric Map Redesign & Multi-Map Engine Architecture
+- **Work completed:**
+  - **Dynamic Level Architecture (`level.js`):**
+    - Refactored all geometry construction (pipes, beams, sliding door frames, lighting fixtures, emergency cages, dust volume, blast door jambs) to scale with dynamic map ceiling height `wallH`.
+    - Integrated map-specific lighting color, reach, and falloff:
+      - Sublevel 4 (The Warden): Clinical hospital ward (3.0m ceiling, blue-tinted overhead fixtures, hospital beds & trolleys).
+      - Sublevel 7 (The Crawler): Claustrophobic low-ceiling drainage network (2.5m ceiling, toxic teal `0x76e2a2` lighting, winding aqueduct canals, sludge cisterns).
+      - Sublevel 1 (The Archivist): Gothic cathedral research archive (5.0m soaring vaulted ceiling, warm amber `0xffc477` lighting with 22m reach, towering 3.8m bookcase labyrinth, open flight atrium).
+  - **Thematic Map Generation & Alignment:**
+    - Authored and verified `src/game/maps/map-sewers.js` and `src/game/maps/map-archive.js` with exact blast-door anchor alignment at `(6,4)` and `(7,4)`, 22 maintenance hiding spots each, and tailored enemy spawns.
+  - **Dynamic Map Discovery & Minimap Engine (`map.js`):**
+    - Implemented `rebuildMapGrid(config)` so `SOLID`, `DOOR`, `AREA_AT`, `FLOOR_TOTAL`, and `WARD_BOXES` recompute dynamically on map switch.
+    - Updated minimap and full-screen map to render real thematic room names ("PUMP CISTERN", "GRAND READING ATRIUM", "TOWERING BOOK STACKS", etc.) and ward boundaries.
+  - **Multi-Map Automated Sanity Check (`scripts/check-map.mjs`):**
+    - Expanded `npm run check:map` to validate all three maps in one pass: rectangular bounds, row lengths, spawn connectivity, key reachability, fixture access, blast door anchors, bed/trolley clearances, and creature pathing to all key spots.
+- **Files modified:**
+  - `src/game/level.js`
+  - `src/game/map.js`
+  - `src/game/game.js`
+  - `src/game/maps/map-sewers.js`
+  - `src/game/maps/map-archive.js`
+  - `scripts/check-map.mjs`
+  - `PROJECT_HANDOFF.md`
+- **Tests performed and results:**
+  - `npm run check:map` → **ALL MAPS PASS (Sublevel 4, Sublevel 7, Sublevel 1), exit 0**.
+  - `npm run build` → **PASS, exit 0** (46 modules transformed).
+  - Dev server active at `http://127.0.0.1:5178/`.
+- **Remaining issues:** None.
+- **Next recommended task:** Play through Sublevel 7 (The Crawler) and Sublevel 1 (The Archivist) in the live browser.
+
+### 2026-11-23 — Randomized Distant Monster Spawning & Spawn Safety Protection
+- **Work completed:**
+  - **Identified Spawn Proximity Bug:** On Sublevel 7 and Sublevel 1, the creature spawn was pinned to fixed coordinates (e.g. col 12 row 7) only a few tiles away from the player spawn (col 9 row 6), causing the monster to spawn immediately adjacent to the player and trigger instant death.
+  - **Engineered Dynamic Spawn Selector (`chooseMonsterSpawnCell`):**
+    - Computes full BFS walking distances (`floorDistances`) from the player's spawn.
+    - Filters candidate floor cells requiring:
+      1. Minimum 18 walking steps distance (`minSteps >= 18`).
+      2. Minimum 18 meters Euclidean direct distance.
+      3. No direct line-of-sight with player (`!hasLineOfSight`).
+      4. Not a doorway tile (`tileAt !== 'D'`).
+    - Randomly picks from the distant candidates on each run/restart.
+  - **Repositioned Author Fallback Spawns:** Updated fallback spawns in `map-sewers.js` to East Cistern `(32, 8)` and `map-archive.js` to South Vaults `(20, 23)`.
+- **Files modified:**
+  - `src/game/level.js`
+  - `src/game/game.js`
+  - `src/game/maps/map-sewers.js`
+  - `src/game/maps/map-archive.js`
+  - `PROJECT_HANDOFF.md`
+- **Tests performed and results:**
+  - `npm run check:map` → **PASS, exit 0**.
+  - `npm run build` → **PASS, exit 0** (46 modules transformed).
+  - Dev server active at `http://127.0.0.1:5178/`.
+- **Next recommended task:** Enjoy surviving in Sublevel 7 and Sublevel 1!
+
+### 2026-11-23 — Hard Labyrinth Map Overhaul & Monster Lifecycle/Facing Fixes
+- **Work completed:**
+  - **Hard Labyrinth Map Generation:**
+    - Redesigned Sublevel 7 (Drainage Network) and Sublevel 1 (Research Archive) from wide open halls into tight, confusing, claustrophobic labyrinths:
+      - Sublevel 7: Winding serpentine canal switchbacks, pipe conduits, and pump cisterns (531 walkable cells).
+      - Sublevel 1: Dense towering bookcase stack aisles, catalog rotunda aisles, and locked manuscript carrels (519 walkable cells).
+    - Reduced walkable floor space to match the tight, tense atmosphere of Sublevel 4 (425 cells) instead of the previous open 660+ cell layouts.
+  - **Fixed Monster Disappearing / Not Spawning in Last 2 Modes:**
+    - Fixed cached GLB geometry disposal in `src/game/creatures/factory.js`: when switching levels or resetting, `crawler.isGlb` and `archivist.isGlb` instances now use a no-op `dispose: () => {}` (matching `wardenModel`), preventing WebGL GPU buffer destruction.
+  - **Fixed Monster Facing Direction:**
+    - In `crawler-model.js` and `archivist-model.js`, applied `mesh.rotation.y = Math.PI` so that the monsters face forward along the $-Z$ movement direction rather than moving backwards tail-first.
+  - **Balanced Spawn Distances:**
+    - Tuned `chooseMonsterSpawnCell` in `src/game/level.js` to place the monster 12–18 walking steps away behind blind corners/walls, ensuring the monster is immediately audible and stalking the player without instant line-of-sight death or 70m dead-zone isolation.
+- **Files modified:**
+  - `src/game/maps/map-sewers.js`
+  - `src/game/maps/map-archive.js`
+  - `src/game/creatures/factory.js`
+  - `src/game/creatures/crawler-model.js`
+  - `src/game/creatures/archivist-model.js`
+  - `src/game/level.js`
+  - `scripts/design_hard_labyrinth_maps.py`
+  - `PROJECT_HANDOFF.md`
+- **Tests performed and results:**
+  - `scripts/design_hard_labyrinth_maps.py` → Validated both grids (0 unreachable cells, enemy spawns 30+ steps away, 24 distributed key hiding spots).
+  - Multi-map simulation via node → All 3 maps verified (`facility`: 425 floor cells / 17 step spawn dist, `sewers`: 531 floor cells / 17 step spawn dist, `archive`: 519 floor cells / 29 step spawn dist).
+  - `npm run check:map` → **PASS, exit 0**.
+  - `npm run build` → **PASS, exit 0** (46 modules transformed).
+  - Dev server active at `http://127.0.0.1:5178/`.
+- **Remaining issues:** None.
+- **Next recommended task:** Play through Sublevel 7 and Sublevel 1 on the live dev server!
+
 <!--
   TEMPLATE FOR FUTURE ENTRIES — append a new section above this comment after every meaningful change:
 

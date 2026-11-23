@@ -24,5 +24,23 @@ npm-debug.log*
 Thumbs.db
 desktop.ini
 
+# Reference skills & intermediate 3D source files
+references/
+blender/
+__pycache__/
+*.blend
+*.blend1
+*.obj
+*.mtl
+*.mp4
+*.gif
+*.hdr
+scripts/extract_frame.py
+scripts/extract_video_frames.py
+scripts/video_frame.png
+public/models/*_preview*.png
+public/models/*_render*.png
+public/models/test_*.png
+
 /THE-LAST-EXIT/
 /THE-LAST-EXIT-MASTER/

@@ -9,6 +9,45 @@ export const CELL = 3;
 /** Wall / ceiling height in metres. */
 export const WALL_H = 3.2;
 
+/**
+ * The 3 selectable maps and their specialized monsters.
+ */
+export const MAPS = [
+  {
+    id: 'facility',
+    name: 'SUBLEVEL 4',
+    subtitle: 'MEDICAL FACILITY',
+    monsterId: 'warden',
+    monsterName: 'THE WARDEN',
+    difficulty: 'STANDARD',
+    threat: 'Class 3 Quadruped',
+    tagline: 'Seven storeys underground. Cold steel corridors and blood-red emergency lamps.',
+    lore: 'A hulking necrotic quadruped tracks your scent through the ring corridor. Heavy steps and bone-splitting grip.',
+  },
+  {
+    id: 'sewers',
+    name: 'SUBLEVEL 7',
+    subtitle: 'DRAINAGE NETWORK',
+    monsterId: 'crawler',
+    monsterName: 'THE CRAWLER',
+    difficulty: 'HARD',
+    threat: 'Class 4 Serpent',
+    tagline: 'Flooded maintenance tunnels and toxic drainage pipes. Something slithers beneath the grates.',
+    lore: 'An eyeless segmented predator with twitching mandibles. It undulates through narrow conduits at terrifying speed.',
+  },
+  {
+    id: 'archive',
+    name: 'SUBLEVEL 1',
+    subtitle: 'RESEARCH ARCHIVE',
+    monsterId: 'archivist',
+    monsterName: 'THE ARCHIVIST',
+    difficulty: 'NIGHTMARE',
+    threat: 'Class 5 Apex',
+    tagline: 'Decaying records and towering library stacks. A four-armed watcher stalks the dust.',
+    lore: 'A towering biped with elongated limbs and papery skin. It reaches across book stacks with multi-jointed arms.',
+  },
+];
+
 export const PLAYER = {
   radius: 0.48,
   eyeHeight: 1.62,
@@ -28,12 +67,12 @@ export const TORCH = {
   batteryMax: 100,
   drain: 1.1,
   regen: 4.2,
-  distance: 30,
-  angle: 0.46,
-  penumbra: 0.55,
+  distance: 42,
+  angle: 0.60,
+  penumbra: 0.65,
   /** candela — modern three.js uses physical light units */
-  intensity: 15,
-  /** gentle falloff so the beam still reads 10-15 metres down a corridor */
+  intensity: 28,
+  /** gentle falloff so the beam still reads 15-20 metres down a corridor */
   decay: 1,
 };
 
@@ -117,19 +156,16 @@ export const ENEMY = {
    */
   chaseSpeed: 3.35,
   /**
-   * body radius used for collision against walls, in metres. The Warden is
-   * about 2.8 m across, so a 1.0 m disc keeps it 0.5 m off each wall of a 3 m
-   * corridor and lets it pass the 2.3 m+ clear doorways.
+   * body radius used for collision against obstacles and walls, in metres.
+   * Scaled to 0.58 so the Warden can smoothly navigate narrow doorways and
+   * corridors without wedging against lockers, crates or beds.
    */
-  radius: 1.0,
+  radius: 0.58,
   /**
-   * Clearance kept from wall tiles, in metres. The model reaches about 1.4 m
-   * sideways, so 1.45 keeps its body out of the walls of a 3 m corridor (cell
-   * centres sit 1.5 m from the walls). Only the tile grid uses it: crates and
-   * lockers keep the smaller `radius`, so the Warden still fits the gaps the
-   * level was built around.
+   * Clearance kept from wall tiles, in metres. 0.98 m allows reliable navigation
+   * in 3 m corridors with obstacles while keeping the body out of solid walls.
    */
-  wallClearance: 1.45,
+  wallClearance: 0.98,
   /**
    * The highest detection a sound alone can reach. Hearing you makes the
    * Warden investigate, but only sight (which fills the meter to 1) starts a chase.
@@ -196,7 +232,7 @@ export const QUALITY = {
     dustCount: 320,
     maxFlickerLights: 5,
     maxRedLights: 4,
-    fogDensity: 0.058,
+    fogDensity: 0.028,
     antialias: true,
     decals: 8,
   },
@@ -208,7 +244,7 @@ export const QUALITY = {
     dustCount: 110,
     maxFlickerLights: 3,
     maxRedLights: 2,
-    fogDensity: 0.048,
+    fogDensity: 0.022,
     antialias: false,
     decals: 3,
   },

@@ -34,27 +34,27 @@ export const FACE_HEIGHT = (-RAW_FLOOR_Y + 0.21) * MODEL_SCALE;
 export const BONE = { root: 0, head: 1, foreR: 2, foreL: 3, hindR: 4, hindL: 5 };
 const BONE_COUNT = 6;
 
-/* Joint pivots (raw GLB units). Head turns on the neck, forelimbs on the
-   shoulders, hindquarters on the hips. Root pivots at the origin. */
+/* Joint pivots (raw GLB units, normalized to 1/MODEL_SCALE).
+   Head turns on the neck, forelimbs on shoulders, hindquarters on hips. */
 const PIVOT = [
   new THREE.Vector3(0, 0, 0),
-  new THREE.Vector3(0, 0.12, 0.3),
-  new THREE.Vector3(0.22, 0, 0.26),
-  new THREE.Vector3(-0.22, 0, 0.26),
-  new THREE.Vector3(0.1, -0.05, -0.14),
-  new THREE.Vector3(-0.1, -0.05, -0.14),
+  new THREE.Vector3(0.0, 0.14, 0.23),
+  new THREE.Vector3(0.18, 0.14, 0.15),
+  new THREE.Vector3(-0.18, 0.14, 0.15),
+  new THREE.Vector3(0.11, 0.05, -0.11),
+  new THREE.Vector3(-0.11, 0.05, -0.11),
 ];
-/* Where each bone's body region sits. */
+/* Where each bone's body region sits for Gaussian influence. */
 const CENTRE = [
-  new THREE.Vector3(0, 0.05, 0.05),
-  new THREE.Vector3(0, 0.2, 0.44),
-  new THREE.Vector3(0.38, 0, 0.3),
-  new THREE.Vector3(-0.38, 0, 0.3),
-  new THREE.Vector3(0.12, -0.1, -0.3),
-  new THREE.Vector3(-0.12, -0.1, -0.3),
+  new THREE.Vector3(0.0, 0.05, 0.0),
+  new THREE.Vector3(0.0, 0.06, 0.35),
+  new THREE.Vector3(0.30, -0.10, 0.15),
+  new THREE.Vector3(-0.30, -0.10, 0.15),
+  new THREE.Vector3(0.18, -0.15, -0.20),
+  new THREE.Vector3(-0.18, -0.15, -0.20),
 ];
-const SIGMA = [0.34, 0.16, 0.2, 0.2, 0.2, 0.2];
-const ROOT_BIAS = 0.6;
+const SIGMA = [0.32, 0.16, 0.20, 0.20, 0.18, 0.18];
+const ROOT_BIAS = 0.55;
 
 /**
  * Shared shader uniforms. One object feeds both the lit material and the
@@ -122,18 +122,30 @@ const SKIN_COLOUR_HEADER = /* glsl */ `
 
   vec3 wardenColour(vec3 albedo) {
     vec3 p = vRest;
-    float lum = dot(albedo, vec3(0.299, 0.587, 0.114));
 
-    // masks in rest space: the head sits at +Z, the forelimb claws reach furthest forward
-    float head = smoothstep(0.27, 0.15, length((p - vec3(0.0, 0.15, 0.4)) * vec3(1.0, 1.1, 0.9)));
-    float mouthD = length((p - vec3(0.0, 0.04, 0.44)) * vec3(1.4, 1.0, 0.8));
-    float mouth = smoothstep(0.1, 0.05, mouthD);
-    float gums = smoothstep(0.14, 0.08, mouthD) * (1.0 - mouth);
-    // wounds and scars must not touch the face: the head joint's Gaussian sits between
-    // the eyes, so without this mask it painted large red blobs around them
+    // --- REGION MASKS ---
+    // Head & face region
+    float head = smoothstep(0.28, 0.14, length((p - vec3(0.0, 0.15, 0.40)) * vec3(1.0, 1.1, 0.9)));
     float notFace = 1.0 - head;
-    float claw = smoothstep(0.34, 0.4, p.z) * smoothstep(0.28, 0.36, abs(p.x));
+
+    // Deep mouth cavity (inside the jaw)
+    float mouthD = length((p - vec3(0.0, 0.03, 0.43)) * vec3(1.4, 1.1, 0.9));
+    float mouthVoid = smoothstep(0.09, 0.03, mouthD);
+
+    // Dangling chin tendrils / drool (hanging below chin at +Z, y below 0.06)
+    float tendrilDist = length(vec2(p.x * 1.5, p.z - 0.41));
+    float tendril = smoothstep(0.16, 0.04, tendrilDist) * smoothstep(0.08, -0.06, p.y);
+
+    // Shoulder & back injector spikes / quills
+    float spikeRegion = smoothstep(0.13, 0.22, abs(p.x)) * smoothstep(0.03, 0.12, p.y) * smoothstep(0.30, 0.12, p.z) * smoothstep(-0.25, -0.10, p.z);
+    float spikeNoise = wardenNoise(p * 22.0);
+    float spike = spikeRegion * smoothstep(0.35, 0.65, spikeNoise);
+
+    // Claws & talons
+    float claw = smoothstep(0.32, 0.40, p.z) * smoothstep(0.26, 0.36, abs(p.x));
     float clawTip = claw * smoothstep(0.38, 0.44, p.z);
+
+    // Major muscular joints for localized bruising
     float joint = max(
       max(wardenGauss(p, vec3(0.0, 0.2, 0.44), 0.2), wardenGauss(p, vec3(0.38, 0.0, 0.3), 0.2)),
       max(
@@ -142,100 +154,81 @@ const SKIN_COLOUR_HEADER = /* glsl */ `
       )
     );
 
-    // 1. base flesh: pale dirty ivory-grey #D2CEC2, cool grey shadows #777873, warmer #B8B2A7
-    // transitions, muted ivory #E3DDD1 highlights
+    // --- 1. BASE HORROR FLESH ---
+    // Deep, decaying corpse hide: shadowed charcoal-taupe to necrotic olive-grey
     float n1 = wardenFbm(p * 2.4);
-    vec3 flesh = mix(wardenLin(vec3(0.467, 0.471, 0.451)), wardenLin(vec3(0.824, 0.808, 0.761)), smoothstep(0.28, 0.62, n1));
-    flesh = mix(flesh, wardenLin(vec3(0.722, 0.698, 0.655)), smoothstep(0.5, 0.75, wardenFbm(p * 3.1 + 7.3)) * 0.3);
-    flesh = mix(flesh, wardenLin(vec3(0.890, 0.867, 0.820)), smoothstep(0.62, 0.9, n1) * 0.45);
+    vec3 flesh = mix(wardenLin(vec3(0.17, 0.16, 0.15)), wardenLin(vec3(0.38, 0.36, 0.33)), smoothstep(0.25, 0.65, n1));
+    flesh = mix(flesh, wardenLin(vec3(0.28, 0.30, 0.24)), smoothstep(0.48, 0.76, wardenFbm(p * 3.1 + 7.3)) * 0.4);
+    flesh = mix(flesh, wardenLin(vec3(0.48, 0.45, 0.41)), smoothstep(0.65, 0.92, n1) * 0.35);
 
-    // 2. restrained bruising: #A77C78 pink-grey, #806A6C mauve-grey, #55454A deep plum
-    float bruise = smoothstep(0.6, 0.82, wardenFbm(p * 2.6 + 13.1));
-    flesh = mix(flesh, wardenLin(vec3(0.655, 0.486, 0.471)), bruise * 0.3);
-    flesh = mix(flesh, wardenLin(vec3(0.502, 0.416, 0.424)), smoothstep(0.66, 0.86, wardenFbm(p * 3.4 + 19.0)) * 0.3);
-    flesh = mix(flesh, wardenLin(vec3(0.333, 0.271, 0.290)), smoothstep(0.7, 0.9, wardenFbm(p * 4.1 + 23.0)) * joint * 0.45);
+    // --- 2. SUBDERMAL BRUISING & HEMATOMAS ---
+    float bruise = smoothstep(0.55, 0.82, wardenFbm(p * 2.6 + 13.1));
+    flesh = mix(flesh, wardenLin(vec3(0.32, 0.18, 0.22)), bruise * 0.45);
+    flesh = mix(flesh, wardenLin(vec3(0.22, 0.12, 0.15)), smoothstep(0.64, 0.88, wardenFbm(p * 3.4 + 19.0)) * 0.4);
+    flesh = mix(flesh, wardenLin(vec3(0.18, 0.07, 0.09)), smoothstep(0.68, 0.90, wardenFbm(p * 4.1 + 23.0)) * joint * 0.6);
 
-    // 3. veins: contour lines of a domain-warped field branch unevenly
+    // --- 3. CONGESTED SUBDERMAL VEINS ---
     vec3 warp = vec3(wardenFbm(p * 3.0), wardenFbm(p * 3.0 + 5.2), wardenFbm(p * 3.0 + 9.1)) - 0.5;
     float vd = abs(wardenNoise((p + warp * 0.06) * 10.0) - 0.5);
-    float width = mix(0.006, 0.026, wardenNoise(p * 6.0 + 3.0));
+    float width = mix(0.007, 0.024, wardenNoise(p * 6.0 + 3.0));
     float vein = (1.0 - smoothstep(width * 0.4, width, vd)) * (1.0 - claw);
     float faint = (1.0 - smoothstep(width, width * 2.6, vd)) * 0.5 * (1.0 - claw);
-    flesh = mix(flesh, wardenLin(vec3(0.145, 0.137, 0.149)), vein * 0.85);
-    flesh = mix(flesh, wardenLin(vec3(0.396, 0.337, 0.353)), faint * 0.35);
-    flesh = mix(flesh, wardenLin(vec3(0.286, 0.251, 0.278)), faint * 0.6);
+    flesh = mix(flesh, wardenLin(vec3(0.08, 0.04, 0.06)), vein * 0.9);
+    flesh = mix(flesh, wardenLin(vec3(0.16, 0.08, 0.11)), faint * 0.65);
 
-    // 4. scars (dusty pink-grey #987675, edges #514448, raw #985B5D) and wounds
-    // (interior #3B1117, maroon #4A171C, dried blood #651C22, raw tissue #8C4247),
-    // concentrated around the joints so they stay localized
+    // --- 4. SCARS & RAW WOUNDS ---
     float scar = (1.0 - smoothstep(0.0, 0.025, abs(wardenNoise(p * 14.0 + 2.0) - 0.5))) * (0.25 + 0.75 * joint) * notFace;
-    flesh = mix(flesh, wardenLin(vec3(0.596, 0.463, 0.459)), scar * 0.45);
-    flesh = mix(flesh, wardenLin(vec3(0.318, 0.267, 0.282)), scar * joint * 0.3);
+    flesh = mix(flesh, wardenLin(vec3(0.35, 0.14, 0.16)), scar * 0.5);
     float wn = wardenFbm(p * 7.0 + 21.0);
-    float deep = smoothstep(0.8, 0.86, wn) * joint * notFace;
-    float fresh = smoothstep(0.74, 0.8, wn) * (1.0 - smoothstep(0.8, 0.86, wn)) * joint * notFace;
-    flesh = mix(flesh, wardenLin(vec3(0.231, 0.067, 0.090)), deep * 0.8);
-    flesh = mix(flesh, wardenLin(vec3(0.396, 0.110, 0.133)), fresh * 0.5);
-    flesh = mix(flesh, wardenLin(vec3(0.549, 0.259, 0.278)), fresh * joint * 0.25);
+    float deep = smoothstep(0.78, 0.86, wn) * joint * notFace;
+    float fresh = smoothstep(0.72, 0.78, wn) * (1.0 - smoothstep(0.78, 0.86, wn)) * joint * notFace;
+    flesh = mix(flesh, wardenLin(vec3(0.12, 0.02, 0.03)), deep * 0.85);
+    flesh = mix(flesh, wardenLin(vec3(0.28, 0.04, 0.06)), fresh * 0.6);
 
-    // 5. grime pooled in the low body
-    float grime = smoothstep(0.6, 0.8, wardenFbm(p * 4.5 + 31.0)) * smoothstep(0.1, -0.2, p.y);
-    flesh = mix(flesh, wardenLin(vec3(0.318, 0.290, 0.277)), grime * 0.4);
+    // --- 5. CAVITY & UNDERBODY OCCLUSION ---
+    float cavity = smoothstep(0.18, -0.22, p.y);
+    flesh = mix(flesh, flesh * 0.35, cavity * 0.75);
 
-    // 6. face: pale corpse-grey, only faint shadow (no tint)
-    flesh = mix(flesh, wardenLin(vec3(0.824, 0.808, 0.761)), head * 0.3);
+    // --- 6. AUTHENTIC SCULPTED FACE (TEXTURE-GROUNDED) ---
+    // Blend the model's true sculpted facial features directly from albedo!
+    // No artificial geometric circles; the sculpt's actual eyes, snout and teeth show naturally.
+    vec3 sculptedFace = albedo * wardenLin(vec3(0.78, 0.74, 0.70));
+    flesh = mix(flesh, sculptedFace, head * 0.82);
 
-    // 7. gums (#6F252B) and near-black burgundy mouth interior (#260B10, shadows #160D10)
-    flesh = mix(flesh, wardenLin(vec3(0.435, 0.145, 0.169)), gums * 0.9);
-    flesh = mix(flesh, wardenLin(vec3(0.149, 0.043, 0.063)), mouth);
-    flesh = mix(flesh, wardenLin(vec3(0.086, 0.051, 0.063)), mouth * smoothstep(0.06, 0.0, mouthD));
+    // Deep shadowy cavity inside the mouth void
+    flesh = mix(flesh, wardenLin(vec3(0.03, 0.01, 0.015)), mouthVoid * 0.95);
 
-    // 7b. red eyes and dirty ivory teeth (approximate rest-space masks, tuned in warden-viewer.html)
-    // 3D distance from an eye centre sitting on the front of the face (z ~ 0.43), so the
-    // eyes only paint where the surface faces forward instead of a stripe through the head
-    float eyeR = length(vec3(abs(p.x) - 0.05, (p.y - 0.17) * 1.1, p.z - 0.42));
-    float eyeZone = smoothstep(0.3, 0.36, p.z);
-    // small deep blood-red eyeball #850014 with #B00020 highlight and #10090B pupil.
-    // The surrounding skin is grey (eyeHalo above), so no red patch sits around the eye.
-    // the area around each eye is restored to pale grey skin, so no red or pink halo remains
-    float eyeHalo = smoothstep(0.05, 0.028, eyeR) * eyeZone;
-    flesh = mix(flesh, wardenLin(vec3(0.824, 0.808, 0.761)), eyeHalo * 0.9);
-    float eyeball = smoothstep(0.014, 0.011, eyeR) * eyeZone;
-    flesh = mix(flesh, wardenLin(vec3(0.522, 0.000, 0.078)), eyeball);
-    // brighter red highlight #B00020 on the upper inner part of each eye
-    float eyeHi = length(vec3(abs(p.x) - 0.058, (p.y - 0.18) * 1.1, p.z - 0.42));
-    float highlight = smoothstep(0.009, 0.006, eyeHi) * eyeZone;
-    flesh = mix(flesh, wardenLin(vec3(0.690, 0.000, 0.125)), highlight * 0.6);
-    // near-black pupil #10090B
-    float pupil = smoothstep(0.008, 0.005, eyeR) * eyeZone;
-    flesh = mix(flesh, wardenLin(vec3(0.063, 0.035, 0.043)), pupil);
-    // dirty aged ivory teeth #D8CDB8, darkened roots and gaps #514447
-    float teeth = smoothstep(0.035, 0.02, abs(p.y - 0.02)) * smoothstep(0.11, 0.08, abs(p.x)) * smoothstep(0.34, 0.37, p.z);
-    flesh = mix(flesh, wardenLin(vec3(0.847, 0.804, 0.722)), teeth);
-    // bone-grey claws #B4AA98 -> dirty grey #81796F, dark tips #373033
-    flesh = mix(flesh, wardenLin(vec3(0.706, 0.667, 0.596)), claw);
-    flesh = mix(flesh, wardenLin(vec3(0.506, 0.475, 0.435)), claw * 0.5 * (1.0 - clawTip));
-    flesh = mix(flesh, wardenLin(vec3(0.216, 0.188, 0.200)), clawTip);
+    // --- 7. DANGLING CHIN TENDRILS / GORE ---
+    flesh = mix(flesh, wardenLin(vec3(0.08, 0.015, 0.025)), tendril * 0.88);
+    flesh = mix(flesh, wardenLin(vec3(0.22, 0.03, 0.05)), tendril * smoothstep(0.02, -0.15, p.y) * 0.5);
 
-    // the albedo map is grey skin with red blotches and purple veins. Its red
-    // blotches are NOT blended in as colour any more (that painted broad red
-    // patches over the face and eyes); the map only adds fine luminance detail below.
-    flesh *= mix(0.9, 1.08, clamp(lum, 0.0, 1.0));
+    // --- 8. SHOULDER & BACK SPIKES / TUBES ---
+    flesh = mix(flesh, wardenLin(vec3(0.10, 0.09, 0.09)), spike * 0.88);
+    flesh = mix(flesh, wardenLin(vec3(0.22, 0.05, 0.06)), spike * smoothstep(0.08, 0.18, p.y) * 0.4);
 
-    // PBR response: skin varies in roughness; wounds and claws are harder; the mouth is wet
-    wardenRoughness = mix(0.8, 0.94, wardenNoise(p * 9.0));
-    wardenRoughness = mix(wardenRoughness, 0.6, deep + fresh);
-    wardenRoughness = mix(wardenRoughness, 0.42, claw);
-    wardenRoughness = mix(wardenRoughness, 0.3, mouth);
-    // a thin wet sheen around the mouth, glossier than the dry skin
-    float wet = smoothstep(0.15, 0.09, mouthD) * (1.0 - mouth);
-    wardenRoughness = mix(wardenRoughness, 0.36, wet * 0.8);
+    // --- 9. OBSIDIAN-DARK TALONS / CLAWS ---
+    flesh = mix(flesh, wardenLin(vec3(0.12, 0.10, 0.10)), claw);
+    flesh = mix(flesh, wardenLin(vec3(0.06, 0.05, 0.05)), claw * (1.0 - clawTip));
+    flesh = mix(flesh, wardenLin(vec3(0.25, 0.04, 0.05)), clawTip);
+
+    // --- 10. GLOBAL SCULPT DETAIL INTEGRATION ---
+    // Modulate overall flesh with sculpt's baked muscle striations and skin micro-detail
+    flesh = mix(flesh, flesh * clamp(albedo * 1.5, 0.3, 1.3), 0.6);
+
+    // --- 11. PBR SURFACE RESPONSE (ROUGHNESS & SPECULAR) ---
+    wardenRoughness = mix(0.72, 0.88, wardenNoise(p * 9.0));
+    wardenRoughness = mix(wardenRoughness, 0.45, deep + fresh);
+    wardenRoughness = mix(wardenRoughness, 0.32, claw);
+    wardenRoughness = mix(wardenRoughness, 0.16, mouthVoid);
+    wardenRoughness = mix(wardenRoughness, 0.20, tendril); // glistening wet gore
+    wardenRoughness = mix(wardenRoughness, 0.38, spike);   // dark weathered steel
+
     return flesh;
   }
 `;
 
 /** Patch a material so its vertices follow the bone matrices. */
-function patchSkinning(material, key) {
+function patchSkinning(material, key, hasColors = false) {
   material.onBeforeCompile = (shader) => {
     Object.assign(shader.uniforms, WARDEN_UNIFORMS);
     shader.vertexShader = shader.vertexShader
@@ -251,14 +244,32 @@ function patchSkinning(material, key) {
          vRest = position;`
       );
     if (material.isMeshStandardMaterial) {
-      shader.fragmentShader = shader.fragmentShader
-        .replace('#include <common>', `#include <common>\n${SKIN_COLOUR_HEADER}`)
-        .replace(
-          '#include <map_fragment>',
-          `#include <map_fragment>
-           diffuseColor.rgb = wardenColour(diffuseColor.rgb);`
-        )
-        .replace('#include <roughnessmap_fragment>', '#include <roughnessmap_fragment>\n           roughnessFactor = wardenRoughness;');
+      if (hasColors) {
+        // Use user's exact painted colors from Blender Color Attribute / Vertex Colors
+        shader.fragmentShader = shader.fragmentShader
+          .replace(
+            '#include <color_fragment>',
+            `#include <color_fragment>
+             // Deep, rich dark charcoal skin tone from Blender paint:
+             diffuseColor.rgb = pow(vColor.rgb, vec3(1.4));`
+          )
+          .replace(
+            '#include <emissivemap_fragment>',
+            `#include <emissivemap_fragment>
+             // Detect painted crimson gore / eyes and give them a luminous horror emissive glow!
+             float isGore = clamp((vColor.r - max(vColor.g, vColor.b) * 1.4) * 2.5, 0.0, 1.0);
+             totalEmissiveRadiance += vColor.rgb * isGore * 2.4;`
+          );
+      } else {
+        shader.fragmentShader = shader.fragmentShader
+          .replace('#include <common>', `#include <common>\n${SKIN_COLOUR_HEADER}`)
+          .replace(
+            '#include <map_fragment>',
+            `#include <map_fragment>
+             diffuseColor.rgb = wardenColour(diffuseColor.rgb);`
+          )
+          .replace('#include <roughnessmap_fragment>', '#include <roughnessmap_fragment>\n           roughnessFactor = wardenRoughness;');
+      }
     }
   };
   material.customProgramCacheKey = () => key;
@@ -285,6 +296,22 @@ function computeSkinWeights(position) {
       const d2 = (x - c.x) ** 2 + (y - c.y) ** 2 + (z - c.z) ** 2;
       w[b] = Math.exp(-d2 / (2 * SIGMA[b] * SIGMA[b])) * (b === BONE.root ? ROOT_BIAS : 1);
     }
+
+    // Anatomical isolation rules:
+    // 1. Left/Right arm isolation (arms and legs do not pull across the sagittal plane)
+    if (x < 0.02) { w[BONE.foreR] = 0; w[BONE.hindR] = 0; }
+    if (x > -0.02) { w[BONE.foreL] = 0; w[BONE.hindL] = 0; }
+
+    // 2. Fore/Hind isolation (forelimbs do not influence hips; hindlimbs do not reach shoulders)
+    if (z < -0.05) { w[BONE.foreR] = 0; w[BONE.foreL] = 0; }
+    if (z > 0.05) { w[BONE.hindR] = 0; w[BONE.hindL] = 0; }
+
+    // 3. Head & Snout isolation: shoulders and claws never drag or deform the head and mouth
+    if (z > 0.22 && Math.abs(x) < 0.16) {
+      w[BONE.foreR] = 0;
+      w[BONE.foreL] = 0;
+    }
+
     order.sort((a, b) => w[b] - w[a]);
     let sum = 0;
     for (let k = 0; k < 4; k++) sum += w[order[k]];
@@ -293,7 +320,7 @@ function computeSkinWeights(position) {
       weights[i * 4 + k] = sum > 0 ? w[order[k]] / sum : k === 0 ? 1 : 0;
     }
     // claws and forepaws: the parts that twitch
-    twitch[i] = clamp01((z - 0.22) * 8) * clamp01((Math.abs(x) - 0.25) * 6);
+    twitch[i] = clamp01((z - 0.15) * 8) * clamp01((Math.abs(x) - 0.25) * 6);
   }
   return { bones, weights, twitch };
 }
@@ -314,25 +341,47 @@ export function loadWardenModel() {
     });
     if (!mesh) throw new Error('warden.glb contains no mesh');
 
+    // Reset any node-level offset baked by Blender's object transform
+    mesh.position.set(0, 0, 0);
+
     const geometry = mesh.geometry;
+    geometry.computeBoundingBox();
+    const spanX = geometry.boundingBox.max.x - geometry.boundingBox.min.x;
+    if (spanX > 1.8) {
+      // Mesh was exported pre-scaled from Blender; normalize to rest space so bone weights map 1:1
+      const invScale = 1.0 / MODEL_SCALE;
+      geometry.scale(invScale, invScale, invScale);
+      geometry.computeBoundingBox();
+    }
+
+    // CRITICAL: Blender exports painted Color Attributes into COLOR_1 (color_1 in Three.js GLTFLoader),
+    // while COLOR_0 (color in Three.js) was left blank white.
+    // Copy the painted red/charcoal attributes into color so Three.js renders them!
+    const paintedColor = geometry.attributes.color_1 || geometry.attributes._color_1;
+    if (paintedColor) {
+      geometry.setAttribute('color', paintedColor);
+    }
+
     const { bones, weights, twitch } = computeSkinWeights(geometry.attributes.position);
     geometry.setAttribute('aBones', new THREE.BufferAttribute(bones, 4));
     geometry.setAttribute('aWeights', new THREE.BufferAttribute(weights, 4));
     geometry.setAttribute('aTwitch', new THREE.BufferAttribute(twitch, 1));
 
     const source = Array.isArray(mesh.material) ? mesh.material[0] : mesh.material;
+    const hasColors = Boolean(geometry.attributes.color);
     const material = new THREE.MeshStandardMaterial({
       name: 'warden-skin',
       map: source.map || null,
+      vertexColors: hasColors,
       color: 0xffffff,
       roughness: 0.82,
       metalness: 0,
     });
     if (material.map) material.map.colorSpace = THREE.SRGBColorSpace;
-    patchSkinning(material, 'warden-skin');
+    patchSkinning(material, hasColors ? 'warden-painted' : 'warden-skin', hasColors);
 
     const depthMaterial = new THREE.MeshDepthMaterial({ depthPacking: THREE.RGBADepthPacking });
-    patchSkinning(depthMaterial, 'warden-depth');
+    patchSkinning(depthMaterial, 'warden-depth', false);
 
     mesh.material = material;
     mesh.customDepthMaterial = depthMaterial;
@@ -363,12 +412,36 @@ const T_POS = new THREE.Matrix4();
 const T_NEG = new THREE.Matrix4();
 const ROT = new THREE.Matrix4();
 
+/**
+ * Realistic quadruped crawl locomotion: asymmetric stance (64% ground drive)
+ * and swing (36% forward reach and ground strike) derived from quadruped kinematics.
+ */
+function crawlGait(phase) {
+  const TWO_PI = Math.PI * 2;
+  const p = (((phase % TWO_PI) + TWO_PI) % TWO_PI) / TWO_PI;
+  if (p < 0.36) {
+    const t = p / 0.36;
+    const ease = t * t * (3 - 2 * t);
+    return {
+      reach: -1 + 2 * ease,
+      lift: Math.sin(t * Math.PI),
+      sweep: Math.sin(t * Math.PI) * 0.18,
+    };
+  }
+  const t = (p - 0.36) / 0.64;
+  return {
+    reach: 1 - 2 * t,
+    lift: 0,
+    sweep: -Math.sin(t * Math.PI) * 0.08,
+  };
+}
+
 /** Pose channels, smoothed toward their targets every frame. */
 const CHANNELS = [
-  'lean', 'roll', 'bob', 'breath',
+  'lean', 'spineYaw', 'roll', 'bob', 'breath',
   'headPitch', 'headYaw', 'headRoll',
-  'foreR', 'foreL', 'liftR', 'liftL',
-  'hindR', 'hindL',
+  'foreR', 'foreL', 'foreYawR', 'foreYawL', 'liftR', 'liftL',
+  'hindR', 'hindL', 'hindLiftR', 'hindLiftL',
 ];
 
 /**
@@ -401,24 +474,46 @@ export class WardenRig {
   update(dt, d, smoothing = 9) {
     const s = d.speed;
     const g = d.phase;
-    const amp = (0.1 + 0.34 * s) * d.settle;
-    const reach = d.lunge * 1.05 + d.grab * 0.8;
+    const settle = d.settle;
+    const amp = (0.08 + 0.18 * s) * settle;
+    const reach = d.lunge * 0.5 + d.grab * 0.4;
     const T = this.target;
     const rear = d.rear ?? 0;
-    T.lean = 0.1 + 0.16 * s + d.lunge * 0.4 - d.raise * 0.12 - rear * 0.5;
-    // slow idle weight shift, plus the lean into a turn
-    T.roll = Math.sin(g) * 0.035 * s + clamp(d.yawRate * 0.12, -0.1, 0.1) + Math.sin(d.time * 0.37) * 0.025;
-    T.bob = Math.abs(Math.sin(g)) * 0.05 * s + rear * 0.22;
+
+    // Quadruped diagonal stalking phase offsets
+    const TWO_PI = Math.PI * 2;
+    const legFR = crawlGait(g);
+    const legHL = crawlGait(g + TWO_PI * 0.25);
+    const legFL = crawlGait(g + TWO_PI * 0.5);
+    const legHR = crawlGait(g + TWO_PI * 0.75);
+
+    // Torso lean and lateral undulation (controlled predator breathing and stalk)
+    T.lean = 0.04 + 0.08 * s + d.lunge * 0.2 - d.raise * 0.08 - rear * 0.35;
+    T.spineYaw = (legFR.reach - legFL.reach) * 0.035 * settle + clamp(d.yawRate * 0.1, -0.12, 0.12);
+
+    // Roll leans into corridor turns and shifts weight onto grounded claws
+    T.roll = (legFL.lift - legFR.lift) * 0.025 * s + clamp(d.yawRate * 0.12, -0.12, 0.12) + Math.sin(d.time * 0.37) * 0.015;
+    T.bob = (Math.max(legFR.lift, legFL.lift) * 0.018 + Math.abs(Math.sin(g * 2)) * 0.012) * s * settle + rear * 0.15;
     T.breath = Math.sin(d.time * 1.7) * 0.5 + 0.5;
-    T.headPitch = 0.12 + Math.sin(g * 2) * 0.03 * s + d.lunge * 0.5 - d.grab * 0.35 - rear * 0.3 - d.raise * 0.5 + d.headPitch;
-    T.headYaw = d.lookYaw;
-    T.headRoll = d.tilt;
-    T.foreR = Math.sin(g) * amp - reach;
-    T.foreL = Math.sin(g + Math.PI) * amp - reach;
-    T.liftR = Math.max(0, Math.sin(g + Math.PI)) * 0.25 * s + d.grab * 0.4;
-    T.liftL = Math.max(0, Math.sin(g)) * 0.25 * s + d.grab * 0.4;
-    T.hindR = Math.sin(g + Math.PI) * amp * 0.8 - d.lunge * 0.35;
-    T.hindL = Math.sin(g) * amp * 0.8 - d.lunge * 0.35;
+
+    // Predator head stabilization: locks onto player, steady and isolated
+    T.headPitch = 0.04 + Math.sin(g * 2) * 0.015 * s - T.bob * 0.3 + d.lunge * 0.3 - d.grab * 0.2 - rear * 0.2 - d.raise * 0.3 + d.headPitch;
+    T.headYaw = d.lookYaw - T.spineYaw * 0.5;
+    T.headRoll = d.tilt - T.roll * 0.4;
+
+    // Forelimbs: firm predator stride with clean claw reach, no rubber warping
+    T.foreR = legFR.reach * amp - reach;
+    T.foreL = legFL.reach * amp - reach;
+    T.foreYawR = legFR.sweep * settle * 0.25 + d.grab * 0.15;
+    T.foreYawL = legFL.sweep * settle * 0.25 - d.grab * 0.15;
+    T.liftR = legFR.lift * 0.16 * s + d.grab * 0.25;
+    T.liftL = legFL.lift * 0.16 * s + d.grab * 0.25;
+
+    // Hindlimbs: steady diagonal follow with ground drive
+    T.hindR = legHR.reach * amp * 0.85 - d.lunge * 0.2;
+    T.hindL = legHL.reach * amp * 0.85 - d.lunge * 0.2;
+    T.hindLiftR = legHR.lift * 0.12 * s;
+    T.hindLiftL = legHL.lift * 0.12 * s;
 
     const k = 1 - Math.exp(-smoothing * dt);
     for (const key of CHANNELS) this.pose[key] += (T[key] - this.pose[key]) * k;
@@ -439,18 +534,18 @@ export class WardenRig {
     const p = this.pose;
     const bones = this.bones;
 
-    // root: torso lean, weight shift, bob and a heavy-breathing scale
+    // root: torso lean, undulating spine yaw, weight shift roll, bob and a heavy-breathing scale
     const breath = 1 + Math.sin(time * 1.7) * 0.018 * (1 + p.breath * 0.3);
-    EULER.set(p.lean, 0, p.roll);
+    EULER.set(p.lean, p.spineYaw, p.roll);
     ROT.makeRotationFromEuler(EULER);
     TMP.makeScale(1, breath, breath);
     bones[BONE.root].makeTranslation(0, p.bob, 0).multiply(ROT).multiply(TMP);
 
     this._jointMatrix(BONE.head, p.headPitch, p.headYaw, p.headRoll);
-    this._jointMatrix(BONE.foreR, p.foreR, 0, p.liftR);
-    this._jointMatrix(BONE.foreL, p.foreL, 0, -p.liftL);
-    this._jointMatrix(BONE.hindR, p.hindR, 0, 0);
-    this._jointMatrix(BONE.hindL, p.hindL, 0, 0);
+    this._jointMatrix(BONE.foreR, p.foreR, p.foreYawR, p.liftR);
+    this._jointMatrix(BONE.foreL, p.foreL, p.foreYawL, -p.liftL);
+    this._jointMatrix(BONE.hindR, p.hindR, 0, p.hindLiftR);
+    this._jointMatrix(BONE.hindL, p.hindL, 0, -p.hindLiftL);
   }
 
   /** Rotate bone b about its pivot: T(pivot) * R * T(-pivot). */

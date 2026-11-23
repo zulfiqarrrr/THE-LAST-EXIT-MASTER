@@ -900,6 +900,82 @@ __lastExit.game.teleportCreature(col,row)  // move the creature to a map cell
 - **Next recommended task:** render the Warden alone in a dedicated viewer (paused loop, fixed camera) to check the
   palette, then tune the masks.
 
+### 2026-11-22 — Quadruped Stalking Motion, Camera & Player Smoothing, Bug Fixes (BUG 1-4)
+- **Work completed:**
+  - **Cloned & curated external motion skills** into `references/skills/`: `motionmaxxing`, `motion-design-skill`, `blender-skills`, `cinetic`, `effectcraft`, `anidoodle`, `huashu-art-motion`, `mg-styles-15`, `reanimate`, and `remotion-skills`. Installed `tweakpane` and `three.quarks`.
+  - **Warden Locomotion Redesign (`src/game/warden-model.js`):** Replaced simplistic symmetric sine crawl with realistic asymmetric quadruped gait (64% stance ground-drive, 36% fast forward swing snap). Added diagonal trot offsets (FR, HL, FL, HR), lateral spine undulation (`spineYaw`), lateral claw sweep, cornering lean based on `yawRate`, and predatory gaze stabilization keeping the head fixated on the player while the torso bobs/rolls.
+  - **Player & Camera Smoothing (`src/game/player.js`):** Added double-harmonic footstrike dip and organic mid-stride rise (`_bobPhase * 2` + `_bobPhase`), lateral camera sway, and full `prefers-reduced-motion` compliance.
+  - **Fixed BUG-1 (Landscape Rotation Hint):** Hint re-evaluated immediately upon entering `playing` state and on `_resize()` in `src/game/game.js`.
+  - **Fixed BUG-2 (HUD/Joystick Overlap):** Added explicit `body.is-touch .hud__bottom` padding in `src/styles/responsive.css` so fine-pointer touch devices/hybrid laptops clear the stick.
+  - **Fixed BUG-3 (Clean Death Cinematic):** Hidden `.touch` buttons/stick and `.minimap` during `.is-caught` in `src/styles/game-ui.css`.
+  - **Fixed BUG-4 (Uncancelled Audio Timeout):** Stored `_unlockTimeout` in `src/game/interactions.js` and cleared on `reset()`/`dispose()`.
+- **Files modified:** `src/game/warden-model.js`, `src/game/player.js`, `src/game/game.js`, `src/game/interactions.js`, `src/styles/responsive.css`, `src/styles/game-ui.css`, `package.json`, `package-lock.json`, `PROJECT_HANDOFF.md`.
+- **Tests performed and results:**
+  - `npm run check:map` → **PASS, exit 0** (41x27, 425 walkable cells).
+  - `npm run build` → **exit 0** (31 modules, 0 warnings, 0 errors).
+- **Remaining issues:** Volume control slider & audio buses in pause menu (§8 Accessibility).
+- **Next recommended task:** Add in-game audio volume control slider and optional Tweakpane visual debugging.
+
+### 2026-11-22 — Monster Footstep Sliding Fix, Organic Voice Synthesis, Environment Visibility & Brightness Overhaul
+- **Work completed:**
+  - **Fixed Monster Floor Sliding (`src/game/enemy.js`):** In `_animate()`, tied `_gait` phase strictly to physical floor displacement (`moveDist / STRIDE_CYCLE * 2π`) rather than an arbitrary delta-time increment. When stationary, `_gait` is frozen in place with zero foot sliding, settling smoothly to rest while idle breathing and twitches play.
+  - **Quadruped Heavy Footsteps (`src/game/enemy.js`, `src/game/audio.js`):** As the creature crawls across the floor, footfalls trigger every 0.5m of ground displacement via `this._cue('step')`. Synthesized physical sub-bass floor thuds (sine pitch drops 68Hz -> 26Hz) layered with claw scrapes (bandpass noise), fully distance-attenuated with distance to player.
+  - **Organic Creature Vocalization Overhaul (`src/game/audio.js`):** Replaced the electronic sawtooth lowpass filter drop ("zuummm" synth sound) with biological guttural acoustic synthesis:
+    1. FM modulation with 26-32 Hz vocal-fold flutter LFO modulating the fundamental pitch for raw, visceral throat rattle.
+    2. Dual acoustic formant bandpass filters (throat F1 ~290-340 Hz and pharynx F2 ~780-860 Hz) modeling real organic vocal tract physics.
+    3. Deep sub-bass chest rumble (30-48 Hz sine) providing physical low-end weight in speakers/headphones.
+    4. Salivary breath aspiration and wet rasping noise.
+    5. Soft-saturation wave-shaping (`Math.tanh`) introducing harmonic warmth and preventing synthetic harshness.
+    6. Upgraded `groan()` with dual formants and slow shudder vibrato.
+  - **Environment Visibility & Darkness Overhaul (`src/game/config.js`, `src/game/level.js`, `src/game/player.js`, `src/game/game.js`):**
+    - Reduced `fogDensity` from 0.058 (high) / 0.048 (low) to 0.028 / 0.022 so long corridors remain readable and atmospheric rather than vanishing into a pitch-black wall 15m away.
+    - Updated fog tint from pure pitch-black `0x05070a` to dark medical blue-grey `0x091018`.
+    - Boosted facility ambient lighting from 0.42 to 0.75 (`0x384a5c`) and hemisphere light from 0.4 to 0.65 (`0x283848` / `0x10161e`).
+    - Increased player personal fill light from 2.2 / 7m to 4.2 / 10m (`0xa8bed2`) so immediate navigation is never completely blind.
+    - Upgraded torch beam in `config.js`: intensity from 15 to 28 candela, distance from 30m to 42m, angle from 0.46 to 0.60 rad (widening the narrow tunnel cone), and penumbra to 0.65.
+    - Raised renderer `toneMappingExposure` from 1.12 to 1.28.
+- **Files modified:** `src/game/enemy.js`, `src/game/audio.js`, `src/game/config.js`, `src/game/level.js`, `src/game/player.js`, `src/game/game.js`, `PROJECT_HANDOFF.md`, `docs/PROJECT_HANDOFF.md`.
+- **Tests performed and results:**
+  - `npm run check:map` → **PASS, exit 0** (41x27, 425 walkable cells).
+  - `npm run build` → **exit 0** (31 modules, 0 warnings, 0 errors).
+- **Next recommended task:** Add in-game audio volume control sliders and sound bus controls in pause menu.
+
+### 2026-11-22 — Monster Navigation Obstacle Clearance & Horror Visual Redesign
+- **Work completed:**
+  - **Fixed Monster Getting Wedged on Obstacles (`src/game/config.js`, `src/game/enemy.js`):**
+    - Reduced oversized `ENEMY.radius` from 1.0m to 0.58m and `ENEMY.wallClearance` from 1.45m to 0.98m.
+    - Previously, in a 3.0m corridor, 1.45m wall clearance on both sides left only 0.10m of free path, causing the monster to freeze and wedge on any floor obstacle (lockers, crates, barrels, beds). With 0.98m clearance and 0.58m hull, it has over 1.0m of navigable clearance and slides past obstacles without getting trapped.
+    - Reduced `_beginSidestep()` probe from 0.95m to 0.65m so unsticking maneuvers find free space instead of penetrating opposite walls.
+  - **Complete Monster Visual & Horror Shader Redesign (`src/game/warden-model.js`):**
+    - Fixed bleached chalk-white mannequin / marshmallow appearance: replaced 80%+ luminance ivory base with deep necrotic corpse hide (shadowed charcoal-taupe `#2B2827`, necrotic olive-grey, and bruised plum undertones).
+    - Fixed white shoulder tubes / spikes: added procedural shoulder quill masks rendering as weathered, tarnished containment steel and calcified bone with dried dark blood stains (not white skin).
+    - Fixed white spaghetti drool: added chin tendril mask rendering as dark, wet, glistening coagulated gore/viscera (`roughness = 0.20`, not white pasta).
+    - Fixed cartoon red dot eyes: replaced with deep sunken black necrotic orbital sockets and piercing feral glowing pupils.
+    - Restored sculpt micro-detail: blended 55% of the model's baked 2048x2048 sculpt texture to retain skin pores, wrinkles, and muscle striations under lighting.
+- **Files modified:** `src/game/config.js`, `src/game/enemy.js`, `src/game/warden-model.js`, `PROJECT_HANDOFF.md`, `docs/PROJECT_HANDOFF.md`.
+- **Tests performed and results:**
+  - `npm run check:map` → **PASS, exit 0** (41x27, 425 walkable cells).
+  - `npm run build` → **exit 0** (31 modules, 0 warnings, 0 errors).
+- **Next recommended task:** Test live encounter in dev server (`http://127.0.0.1:5178`) and tune audio volume UI.
+
+### 2026-11-22 — Kill Jumpscare Audio Overhaul, Authentic Sculpted Face & Silky-Smooth Locomotion
+- **Work completed:**
+  - **Eliminated Synthetic/AI Jumpscare Sound (`src/game/audio.js`):**
+    - Replaced raw 300Hz->24Hz sawtooth electronic arcade drop in `caught()` with visceral multi-layer horror acoustics: heavy sub-bass bone-crunching impact (pitch drop 95Hz->22Hz with saturation), tearing gore/flesh-rip transient filter, and FM-modulated predatory death screech through dual throat formants.
+    - Upgraded `stinger()` with dissonant tritone horror chord and shock impact noise.
+  - **Authentic Face & Head Redesign (`src/game/warden-model.js`):**
+    - Eliminated artificial geometric math circles (fake procedural eye dots and box teeth) that distorted across the 3D mesh.
+    - Grounded the creature's face directly in the model's authentic 2048x2048 sculpted UV albedo, preserving natural anatomical eye sockets, snout, and teeth.
+    - Deepened mouth interior into an occluded dark gore void, keeping wet specular sheen on mouth and tendrils.
+  - **Silky-Smooth Predatory Pathing & Turning (`src/game/enemy.js`):**
+    - Added lookahead corner smoothing in `_followPath()`: when within 1.6m of a waypoint, smoothly blends trajectory toward the next waypoint, turning harsh 90-degree tile corners into natural predator curves.
+    - Replaced abrupt heading snaps in `_step()` with exponential yaw damping (`wrapAngle` at rate 11), ensuring continuous, fluid rotation through doorways and turns.
+- **Files modified:** `src/game/audio.js`, `src/game/warden-model.js`, `src/game/enemy.js`, `PROJECT_HANDOFF.md`, `docs/PROJECT_HANDOFF.md`.
+- **Tests performed and results:**
+  - `npm run check:map` → **PASS, exit 0** (41x27, 425 walkable cells).
+  - `npm run build` → **exit 0** (31 modules, 0 warnings, 0 errors).
+- **Next recommended task:** In-game pause menu audio sliders and stealth crouch walk.
+
 <!--
   TEMPLATE FOR FUTURE ENTRIES — append a new section above this comment after every meaningful change:
 

@@ -12,6 +12,7 @@
 import * as THREE from 'three';
 import { ENEMY, clamp, damp, mulberry32 } from './config.js';
 import { FACE_HEIGHT, WARDEN_UNIFORMS, WardenRig } from './warden-model.js';
+import { createMonsterInstance } from './creatures/factory.js';
 import {
   cellToWorld,
   findPath,
@@ -40,20 +41,25 @@ export class Creature {
    * already-loaded Warden from loadWardenModel(). The creature attaches it but
    * never owns or disposes it.
    */
-  constructor({ scene, level, quality, audio, model }) {
+  constructor({ scene, level, quality, audio, model, monsterId }) {
     this.scene = scene;
     this.level = level;
     this.quality = quality;
     this.audio = audio;
+    this.wardenModel = model;
     this.random = mulberry32(1337);
 
     this.group = new THREE.Group();
     this.group.name = 'creature';
-    this.model = model.object;
-    // the quality preset decides whether the sculpted body casts shadows
-    model.mesh.castShadow = !!quality.shadows;
+
+    this.monsterId = monsterId || level?.mapConfig?.MONSTER_ID || 'warden';
+    this.monsterInstance = createMonsterInstance(this.monsterId, {
+      wardenModel: model,
+      quality,
+    });
+    this.model = this.monsterInstance.object;
     this.group.add(this.model);
-    this.rig = new WardenRig();
+    this.rig = this.monsterInstance.rig;
 
     this.mode = 'patrol';
     this.detection = 0;
@@ -84,6 +90,7 @@ export class Creature {
       typeof matchMedia === 'function' &&
       matchMedia('(prefers-reduced-motion: reduce)').matches;
     this._gait = 0;
+    this._prevPos = { x: 0, z: 0 };
     this._stepDistance = 0;
     this._growlTimer = 4;
     this._yaw = 0;
@@ -106,6 +113,24 @@ export class Creature {
     scene.add(this.group);
   }
 
+  setMonster(monsterId) {
+    if (!monsterId || monsterId === this.monsterId) return;
+    this.monsterId = monsterId;
+    if (this.model) {
+      this.group.remove(this.model);
+    }
+    if (this.monsterInstance?.dispose) {
+      this.monsterInstance.dispose();
+    }
+    this.monsterInstance = createMonsterInstance(this.monsterId, {
+      wardenModel: this.wardenModel,
+      quality: this.quality,
+    });
+    this.model = this.monsterInstance.object;
+    this.group.add(this.model);
+    this.rig = this.monsterInstance.rig;
+  }
+
   /* --------------------------------- model -------------------------------- */
 
   /* --------------------------------- state -------------------------------- */
@@ -126,6 +151,7 @@ export class Creature {
     this.speed = 0;
     this._yaw = 0;
     this._gait = 0;
+    this._prevPos = { x: position.x, z: position.z };
     this._stepDistance = 0;
     this._growlTimer = 6;
     this.group.rotation.y = 0;
@@ -191,8 +217,16 @@ export class Creature {
     this.cue.kind = kind;
     this.cue.intensity = intensity;
     this.cue.age = 0;
-    if (kind === 'growl') this.audio.growl(intensity);
-    else this.audio.creatureStep(this.distanceToPlayer);
+    if (this.monsterId === 'crawler') {
+      if (kind === 'growl') this.audio.crawlerHiss(intensity);
+      else this.audio.crawlerSlither(this.distanceToPlayer);
+    } else if (this.monsterId === 'archivist') {
+      if (kind === 'growl') this.audio.archivistWhisper(intensity);
+      else this.audio.archivistStep(this.distanceToPlayer);
+    } else {
+      if (kind === 'growl') this.audio.growl(intensity);
+      else this.audio.creatureStep(this.distanceToPlayer);
+    }
   }
 
   /* -------------------------------- steering ------------------------------ */
@@ -262,7 +296,9 @@ export class Creature {
       moved = true;
     }
 
-    this._yaw = Math.atan2(-dirX, -dirZ);
+    // Smooth heading turns instead of abrupt angular snapping
+    const targetYaw = Math.atan2(-dirX, -dirZ);
+    this._yaw += wrapAngle(targetYaw - this._yaw) * (1 - Math.exp(-11 * dt));
     this.speed = moved ? speed : 0;
     this.moving = moved;
     return moved;
@@ -335,7 +371,7 @@ export class Creature {
       { x: forwardX, z: forwardZ },
     ];
     for (const option of options) {
-      const probe = 0.95;
+      const probe = 0.65;
       const px = this.group.position.x + option.x * probe;
       const pz = this.group.position.z + option.z * probe;
       if (!this._blocked(px, pz)) {
@@ -376,13 +412,22 @@ export class Creature {
     if (!this.path.length) return false;
     const waypoint = this.path[0];
     const target = cellToWorld(waypoint.col, waypoint.row);
-    const dx = target.x - this.group.position.x;
-    const dz = target.z - this.group.position.z;
-    const distance = Math.hypot(dx, dz);
-    if (distance < ENEMY.waypointRadius) {
+    let targetX = target.x;
+    let targetZ = target.z;
+    const distToWp = Math.hypot(target.x - this.group.position.x, target.z - this.group.position.z);
+    if (distToWp < ENEMY.waypointRadius) {
       this.path.shift();
       if (!this.path.length) return false;
+    } else if (this.path.length > 1 && distToWp < 1.6) {
+      // Lookahead corner curving: smoothly curve around 90-degree corridor bends
+      const nextTarget = cellToWorld(this.path[1].col, this.path[1].row);
+      const blend = clamp((1.6 - distToWp) / 1.6, 0, 0.6);
+      targetX = target.x * (1 - blend) + nextTarget.x * blend;
+      targetZ = target.z * (1 - blend) + nextTarget.z * blend;
     }
+    const dx = targetX - this.group.position.x;
+    const dz = targetZ - this.group.position.z;
+    const distance = Math.hypot(dx, dz);
     this._step(dx / (distance || 1), dz / (distance || 1), speed, dt);
     return true;
   }
@@ -442,11 +487,31 @@ export class Creature {
     this._prevYaw = this._yaw;
     this._yawRate = damp(this._yawRate, turn, 8, dt);
 
-    // gait: the crawl cycle runs faster the harder the creature is moving
-    const ratio = clamp(this.speed / ENEMY.chaseSpeed, 0, 1);
-    this._speedRatio = damp(this._speedRatio, ratio, 6, dt);
-    this._settle = damp(this._settle, this.moving ? 1 : 0, 5, dt);
-    this._gait += dt * (1.2 + 5.2 * this._speedRatio);
+    // physical distance moved over the floor
+    const moveDist = Math.hypot(
+      this.group.position.x - this._prevPos.x,
+      this.group.position.z - this._prevPos.z
+    );
+    this._prevPos.x = this.group.position.x;
+    this._prevPos.z = this.group.position.z;
+
+    // gait: the crawl cycle strictly tracks physical ground travel (no sliding feet!)
+    const STRIDE_CYCLE = 2.0; // 1 full crawl cycle per 2.0 metres of ground travel
+    if (this.moving && moveDist > 0.0002) {
+      this._gait += (moveDist / STRIDE_CYCLE) * (Math.PI * 2);
+      this._stepDistance += moveDist;
+      if (this._stepDistance >= 0.5) {
+        this._stepDistance = 0;
+        this._cue('step');
+      }
+      const ratio = clamp(this.speed / ENEMY.chaseSpeed, 0.25, 1);
+      this._speedRatio = damp(this._speedRatio, ratio, 8, dt);
+      this._settle = damp(this._settle, 1, 6, dt);
+    } else {
+      // standing / paused: freeze gait cycle and settle to idle posture
+      this._speedRatio = damp(this._speedRatio, 0, 7, dt);
+      this._settle = damp(this._settle, 0, 5, dt);
+    }
 
     // forelimb strike: a sudden lunge once a chase is close, then a short recovery
     this._strikeCooldown = Math.max(0, this._strikeCooldown - dt);
@@ -479,7 +544,9 @@ export class Creature {
       this._twitchTimer = this.reducedMotion ? 5 + this.random() * 4 : 1.2 + this.random() * 3.2;
     }
     this._twitch = damp(this._twitch, 0, 7, dt);
-    WARDEN_UNIFORMS.uTwitch.value = this.reducedMotion ? 0 : this._twitch;
+    if (this.monsterId === 'warden') {
+      WARDEN_UNIFORMS.uTwitch.value = this.reducedMotion ? 0 : this._twitch;
+    }
 
     this.rig.update(dt, {
       phase: this._gait,

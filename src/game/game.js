@@ -13,6 +13,7 @@ import {
   buildLevel,
   cellToWorld,
   chooseLumenKeyCell,
+  chooseMonsterSpawnCell,
   floorDistances,
   hasLineOfSight,
   isSolidAt,
@@ -35,13 +36,14 @@ const CUE_FRESH = 1.15;
 const WORLD_UP = new THREE.Vector3(0, 1, 0);
 
 export class Game {
-  constructor({ canvas, layer, hud, audio, dom, onStateChange, quality, warden }) {
+  constructor({ canvas, layer, hud, audio, dom, onStateChange, quality, warden, mapId = 'facility' }) {
     this.canvas = canvas;
     this.layer = layer;
     this.hud = hud;
     this.audio = audio;
     this.dom = dom;
     this.warden = warden || null;
+    this.mapId = mapId;
     this.reducedMotion =
       typeof matchMedia === 'function' && matchMedia('(prefers-reduced-motion: reduce)').matches;
     this.onStateChange = onStateChange || (() => {});
@@ -106,7 +108,7 @@ export class Game {
     renderer.shadowMap.enabled = this.quality.shadows;
     renderer.shadowMap.type = THREE.PCFShadowMap;
     renderer.toneMapping = THREE.ACESFilmicToneMapping;
-    renderer.toneMappingExposure = 1.12;
+    renderer.toneMappingExposure = 1.28;
     if ('outputColorSpace' in renderer) renderer.outputColorSpace = THREE.SRGBColorSpace;
 
     this.scene = scene;
@@ -114,7 +116,7 @@ export class Game {
     this._baseFov = camera.fov;
     this.renderer = renderer;
 
-    this.level = buildLevel(scene, this.quality);
+    this.level = buildLevel(scene, this.quality, this.mapId);
     this.level.setAudio(this.audio);
     this.player = new Player({ camera, scene, level: this.level, quality: this.quality });
     this.lumen = new Lumen({ camera, scene, onExpire: () => this._onLumenExpired() });
@@ -277,11 +279,36 @@ export class Game {
 
   /* -------------------------------- run flow ------------------------------ */
 
-  startRun() {
+  setMap(mapId) {
+    if (!mapId) return;
+    const changed = mapId !== this.mapId;
+    this.mapId = mapId;
+    if (this.level && changed) {
+      this.level.dispose();
+      this.level = buildLevel(this.scene, this.quality, this.mapId);
+      this.level.setAudio(this.audio);
+      if (this.player) this.player.level = this.level;
+      if (this.creature) {
+        this.creature.level = this.level;
+        this.creature.setMonster(this.level.mapConfig?.MONSTER_ID || 'warden');
+      }
+      if (this.objectives) this.objectives.setLevel(this.level);
+      if (this.map) this.map.rebuildGrid(this.level.mapConfig);
+    }
+  }
+
+  startRun(mapId) {
+    if (mapId) {
+      this.setMap(mapId);
+    }
     if (!this.initialized) this.init();
+    else if (mapId && this.level && this.creature) {
+      this.creature.setMonster(this.level.mapConfig?.MONSTER_ID || 'warden');
+    }
     this._hideOverlays();
     this._resetRun();
     this.setState('playing');
+    this._updateRotateHint();
     // drop any look or move input queued during the kill sequence or game over
     this.controls.releaseAll();
     this.controls.setEnabled(true);
@@ -295,6 +322,7 @@ export class Game {
     this._hideOverlays();
     this._resetRun();
     this.setState('playing');
+    this._updateRotateHint();
     // drop any look or move input queued during the kill sequence or game over
     this.controls.releaseAll();
     this.controls.setEnabled(true);
@@ -318,6 +346,7 @@ export class Game {
     if (this.state !== 'paused') return;
     this._hideOverlays();
     this.setState('playing');
+    this._updateRotateHint();
     // drop any look or move input queued during the kill sequence or game over
     this.controls.releaseAll();
     this.controls.setEnabled(true);
@@ -398,7 +427,11 @@ export class Game {
     this._recentLumenCells = [];
     this.player.reset(this.level.startCell);
     this.map?.reset(this.player);
-    this.creature.reset(this.level.enemyCell);
+    const enemySpawn = chooseMonsterSpawnCell({
+      playerCell: this.level.startCell,
+      minSteps: 18,
+    });
+    this.creature.reset(enemySpawn);
     this._placeMaintenanceKey();
     this._spawnLumenKey();
     this.objectives.reset();
@@ -633,7 +666,8 @@ export class Game {
     const clearOfWarden = (spot) =>
       Math.abs(spot.col - warden.col) > LUMEN_KEY.clearance ||
       Math.abs(spot.row - warden.row) > LUMEN_KEY.clearance;
-    const reachable = MAINTENANCE_SPOTS.filter((spot) => stepsTo(spot) >= 0);
+    const allSpots = this.level?.maintenanceSpots || MAINTENANCE_SPOTS;
+    const reachable = allSpots.filter((spot) => stepsTo(spot) >= 0);
     const far = reachable.filter((spot) => stepsTo(spot) >= MAINTENANCE_KEY.minSpawnSteps);
     const hidden = (spot) => !this._inPlayerSight(spot, MAINTENANCE_KEY.viewRange);
     const tiers = [
@@ -643,7 +677,7 @@ export class Game {
       far,
       reachable,
     ];
-    const pool = tiers.find((tier) => tier.length) || MAINTENANCE_SPOTS;
+    const pool = tiers.find((tier) => tier.length) || allSpots;
     const spot = pool[Math.floor(Math.random() * pool.length)];
     this._maintenanceSpot = spot;
     this.level.placeKey(spot);
@@ -988,6 +1022,7 @@ export class Game {
     const portrait = height > width;
     this.camera.fov = this.touchEnabled ? (portrait ? 82 : 76) : 72;
     this.camera.updateProjectionMatrix();
+    this._updateRotateHint();
   }
 
   _updateRotateHint() {

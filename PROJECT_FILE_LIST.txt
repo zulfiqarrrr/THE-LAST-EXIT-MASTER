@@ -20,11 +20,8 @@ ROOT
 --------------------------------------------------------------------------------
 
   .gitignore                        51 B      Version-control ignores (node_modules, dist, dist-ssr, *.local, .DS_Store, .vite)
-  index.html                    23,031 B    501 lines. THE ONLY HTML FILE. Contains the entire website layer (nav, hero,
-                                              story, how-to-play, facility, CTA, footer) AND the entire game layer (canvas,
-                                              HUD, reticle, directional threat ring + caption, prompts, touch controls,
-                                              loading, pause, game-over, victory, WebGL-error panels). Links the 4
-                                              stylesheets and loads src/main.js as a module.
+  index.html                    23,031 B    Main entry point for website and game.
+  viewer.html                    3,880 B    Dedicated 3D Monster Inspector full-page viewer.
   package.json                     463 B      Name/version/type:module. Deps: three ^0.186.1. DevDeps: vite ^7.1.5.
                                               Scripts: dev, build, preview (port 4173), check:map.
   package-lock.json             35,687 B      Lockfile v3 (installed vite resolves to 7.3.7).
@@ -132,6 +129,19 @@ GAME MODULES  (src/game)
                                               attempt, visibility auto-pause, the escape cinematic, the threat-bearing maths
                                               that converts the camera's own axes into a compass bearing to the creature, and
                                               the QA helpers (step/teleport/teleportCreature/interact/debug).
+    map-select-ui.js               6,800 B    Map selection controller. Manages interactive sector deployment cards,
+                                              renders procedural canvas previews per sublevel, handles keyboard and touch.
+    map-props.js                   4,200 B    Thematic prop builders: Sewers sludge vats & pump turbines; Archive towering
+                                              2.8m bookshelves & reading desks.
+    creatures/
+      factory.js                   1,200 B    Monster instance factory (Warden, Crawler, Archivist).
+      crawler-model.js             6,200 B    The Crawler: 10-segment serpentine procedural 3D model & S-curve rig.
+      archivist-model.js           7,500 B    The Archivist: tall 2.6m 4-armed bipedal procedural 3D model & stalking rig.
+    maps/
+      index.js                     1,200 B    Map registry exporting all 3 selectable sublevel configurations.
+      map-facility.js              3,800 B    Sublevel 4: Medical Facility (The Warden).
+      map-sewers.js                3,800 B    Sublevel 7: Drainage Network (The Crawler).
+      map-archive.js               3,800 B    Sublevel 1: Research Archive (The Archivist).
 
 --------------------------------------------------------------------------------
 SITE MODULES  (src/site)
@@ -158,6 +168,8 @@ STYLESHEETS  (src/styles)
     responsive.css                 5,276 B    249 lines. Breakpoints (480/640/768/900/1024), coarse-pointer tuning,
                                               landscape-phone compaction (labels hidden, smaller controls), very-short-screen
                                               rules, the touch-only rotate hint rule, and the print fallback.
+    map-select.css                 4,800 B    Map selection overlay styling: high-tech terminal theme, responsive cards grid,
+                                              threat badges, and scanline effects.
 
 --------------------------------------------------------------------------------
 GENERATED / EXCLUDED  (listed for completeness — do not hand-edit)

@@ -7,9 +7,9 @@
 
 import { LUMEN_KEY } from './config.js';
 
-const KEY_RANGE = 2.9;
+const KEY_RANGE = 3.2;
 const EXIT_RANGE = 4.2;
-const KEY_DOT = 0.55;
+const KEY_DOT = 0.45;
 const EXIT_DOT = 0.35;
 // the security room CCTV console (see level.cctvConsole)
 const CCTV_RANGE = 2.3;
@@ -38,9 +38,16 @@ export class Objectives {
     this.reset();
   }
 
+  setLevel(newLevel) {
+    this.level = newLevel;
+    this._keyWorld = newLevel.keyAnchor;
+    this._cctvAnchor = newLevel.cctvConsole ? newLevel.cctvConsole.anchor : null;
+  }
+
   reset() {
     this.hasKey = false;
     this.exitUnlocked = false;
+    this._keyWorld = this.level.keyAnchor;
     this._focus = null;
     this._pulse = 0;
     this._unlockAnim = 0;
@@ -72,12 +79,16 @@ export class Objectives {
     }
 
     if (!this.hasKey) {
-      const distance = camera.position.distanceTo(
-        this._keyWorld.clone().setY(camera.position.y)
+      const keyAnchor = this.level.keyAnchor || this._keyWorld;
+      const xzDistance = Math.hypot(
+        keyAnchor.x - camera.position.x,
+        keyAnchor.z - camera.position.z
       );
+      const dist3D = camera.position.distanceTo(keyAnchor);
       if (
-        distance <= KEY_RANGE &&
-        player.isLookingAt(this._keyWorld, KEY_DOT) &&
+        xzDistance <= KEY_RANGE &&
+        dist3D <= KEY_RANGE * 1.25 &&
+        player.isLookingAt(keyAnchor, KEY_DOT) &&
         this.level.keyGroup.visible
       ) {
         return {

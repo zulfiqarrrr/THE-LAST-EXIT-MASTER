@@ -100,6 +100,7 @@ browser · `[MOBILE-DEVICE]` real phone/tablet · `[UNVERIFIED]` not verified.
 | 4.15 | Cinematic landing page | **COMPLETE** | Live Three.js hero corridor with drifting dust, flickering fixtures, a red emergency glow and a figure that fades in ahead of the camera, behind scanlines and a vignette. `[BROWSER]` |
 | 4.16 | Animated menus | **COMPLETE** | Scroll reveals, animated hero, staged overlays with entrance transitions, pulsing PLAY button, load bar. `[BROWSER]` |
 | 4.17 | Responsive design across phones, tablets, laptops, desktops | **COMPLETE** | Verified at 390×844, 844×390, 1280×800 and 1280×760 with correct reflow and FOV changes. Tablet widths fall inside the verified range but no tablet was used. `[BROWSER]` / tablet `[UNVERIFIED]` |
+| 4.18 | Creature-centric map topologies & dynamic ceiling heights | **COMPLETE** | Three distinct maps tailored to monster morphology: Sublevel 4 (The Warden, 3.0m ceiling, clinical hospital grid, door chokepoints), Sublevel 7 (The Crawler, 2.5m claustrophobic ceiling, serpentine aqueduct canals, circular pump cisterns), Sublevel 1 (The Archivist, 5.0m vaulted ceiling, open flight atrium, 3.8m tall bookcase labyrinth). All validated via automated multi-map test suite. `[SRC]` `[BUILD]` |
 
 ---
 

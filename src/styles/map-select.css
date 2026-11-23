@@ -1,0 +1,275 @@
+/* ==========================================================================
+   THE LAST EXIT — Map Selection UI Styles
+   High-tech terminal aesthetic for choosing facility sublevel and specimen.
+   ========================================================================== */
+
+.overlay--map-select {
+  position: fixed;
+  inset: 0;
+  z-index: 900;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: rgba(4, 6, 9, 0.94);
+  backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
+  padding: 1.5rem;
+  overflow-y: auto;
+  opacity: 1;
+  transition: opacity 0.25s ease;
+}
+
+.overlay--map-select[hidden] {
+  display: none;
+  opacity: 0;
+}
+
+.map-select-dialog {
+  width: 100%;
+  max-width: 1080px;
+  background: linear-gradient(180deg, rgba(16, 22, 30, 0.95) 0%, rgba(9, 13, 18, 0.98) 100%);
+  border: 1px solid rgba(80, 110, 140, 0.25);
+  box-shadow: 0 24px 60px rgba(0, 0, 0, 0.8), inset 0 1px 0 rgba(255, 255, 255, 0.08);
+  border-radius: 4px;
+  padding: 2.2rem 2rem;
+  display: flex;
+  flex-direction: column;
+  gap: 1.8rem;
+  position: relative;
+  font-family: inherit;
+  color: #e2e8f0;
+}
+
+.map-select__header {
+  border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+  padding-bottom: 1.2rem;
+}
+
+.map-select__eyebrow {
+  font-family: var(--font-mono, monospace);
+  font-size: 0.78rem;
+  letter-spacing: 0.2em;
+  text-transform: uppercase;
+  color: #ff3b47;
+  margin: 0 0 0.4rem;
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+.map-select__eyebrow::before {
+  content: '';
+  display: inline-block;
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background: #ff3b47;
+  box-shadow: 0 0 8px #ff3b47;
+}
+
+.map-select__title {
+  font-size: 1.75rem;
+  font-weight: 700;
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+  margin: 0 0 0.4rem;
+  color: #fff;
+}
+
+.map-select__subtitle {
+  font-size: 0.92rem;
+  color: #8fa0b5;
+  margin: 0;
+  line-height: 1.4;
+}
+
+/* -------------------------------- Cards Grid -------------------------------- */
+
+.map-select__grid {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 1.2rem;
+}
+
+.map-card {
+  background: rgba(12, 17, 23, 0.85);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  border-radius: 4px;
+  padding: 1.25rem;
+  cursor: pointer;
+  display: flex;
+  flex-direction: column;
+  gap: 0.9rem;
+  transition: all 0.2s cubic-bezier(0.16, 1, 0.3, 1);
+  text-align: left;
+  position: relative;
+  overflow: hidden;
+}
+
+.map-card:hover {
+  background: rgba(18, 25, 34, 0.95);
+  border-color: rgba(90, 160, 240, 0.45);
+  transform: translateY(-2px);
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.4);
+}
+
+.map-card.is-selected {
+  background: linear-gradient(180deg, rgba(22, 32, 44, 0.95) 0%, rgba(14, 20, 28, 0.98) 100%);
+  border-color: #3fd8ff;
+  box-shadow: 0 0 0 1px #3fd8ff, 0 12px 32px rgba(0, 0, 0, 0.6), inset 0 0 20px rgba(63, 216, 255, 0.06);
+}
+
+.map-card__top {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+
+.map-card__level {
+  font-family: var(--font-mono, monospace);
+  font-size: 0.72rem;
+  letter-spacing: 0.15em;
+  color: #8fa0b5;
+  text-transform: uppercase;
+}
+
+.map-card.is-selected .map-card__level {
+  color: #3fd8ff;
+  font-weight: 600;
+}
+
+.map-card__badge {
+  font-family: var(--font-mono, monospace);
+  font-size: 0.65rem;
+  font-weight: 600;
+  padding: 0.2rem 0.5rem;
+  border-radius: 3px;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+}
+
+.badge--standard {
+  background: rgba(63, 216, 255, 0.12);
+  color: #3fd8ff;
+  border: 1px solid rgba(63, 216, 255, 0.25);
+}
+
+.badge--hard {
+  background: rgba(255, 170, 40, 0.12);
+  color: #ffaa28;
+  border: 1px solid rgba(255, 170, 40, 0.3);
+}
+
+.badge--nightmare {
+  background: rgba(255, 59, 71, 0.15);
+  color: #ff3b47;
+  border: 1px solid rgba(255, 59, 71, 0.35);
+}
+
+.map-card__name {
+  font-size: 1.15rem;
+  font-weight: 700;
+  color: #fff;
+  margin: 0;
+  letter-spacing: 0.04em;
+}
+
+.map-card__preview {
+  width: 100%;
+  height: 110px;
+  background: #06090e;
+  border: 1px solid rgba(255, 255, 255, 0.06);
+  border-radius: 3px;
+  position: relative;
+  overflow: hidden;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.map-card__canvas {
+  width: 100%;
+  height: 100%;
+  display: block;
+}
+
+.map-card__monster {
+  display: flex;
+  flex-direction: column;
+  gap: 0.2rem;
+  background: rgba(0, 0, 0, 0.3);
+  padding: 0.6rem 0.75rem;
+  border-radius: 3px;
+  border-left: 2px solid rgba(255, 255, 255, 0.15);
+}
+
+.map-card.is-selected .map-card__monster {
+  border-left-color: #3fd8ff;
+}
+
+.map-card__monster-label {
+  font-family: var(--font-mono, monospace);
+  font-size: 0.68rem;
+  color: #64748b;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+}
+
+.map-card__monster-name {
+  font-size: 0.95rem;
+  font-weight: 700;
+  color: #f1f5f9;
+  letter-spacing: 0.03em;
+}
+
+.map-card__threat {
+  font-size: 0.72rem;
+  color: #94a3b8;
+  font-family: var(--font-mono, monospace);
+}
+
+.map-card__desc {
+  font-size: 0.8rem;
+  color: #7b8ea3;
+  margin: 0;
+  line-height: 1.45;
+  flex-grow: 1;
+}
+
+/* -------------------------------- Actions -------------------------------- */
+
+.map-select__actions {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  border-top: 1px solid rgba(255, 255, 255, 0.08);
+  padding-top: 1.4rem;
+  margin-top: 0.5rem;
+}
+
+.map-select__note {
+  font-size: 0.82rem;
+  color: #64748b;
+  font-family: var(--font-mono, monospace);
+  margin: 0;
+}
+
+.map-select__buttons {
+  display: flex;
+  gap: 0.8rem;
+}
+
+/* -------------------------------- Responsive -------------------------------- */
+
+@media (max-width: 900px) {
+  .map-select__grid {
+    grid-template-columns: 1fr;
+    gap: 1rem;
+  }
+  .map-card__preview {
+    height: 90px;
+  }
+  .map-select-dialog {
+    padding: 1.5rem 1.2rem;
+  }
+}

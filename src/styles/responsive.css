@@ -122,8 +122,12 @@
 }
 
 /* ==========================================================================
-   Touch / coarse-pointer devices
+   Touch / coarse-pointer devices (and when touch is enabled via body.is-touch)
    ========================================================================== */
+
+body.is-touch .hud__bottom {
+  padding-bottom: clamp(0.5rem, 17vh, 9rem);
+}
 
 @media (pointer: coarse) {
   /* Keep HUD clear of both thumb zones */
@@ -146,6 +150,18 @@
   .segmented__btn {
     padding: 0.6rem 0.9rem;
   }
+}
+
+body.is-touch .hud__gauges {
+  max-width: 12rem;
+}
+
+body.is-touch .prompt {
+  bottom: clamp(9.5rem, 30vh, 13rem);
+}
+
+body.is-touch .capture-hint {
+  display: none !important;
 }
 
 /* -------------------------- landscape phones ---------------------------- */
