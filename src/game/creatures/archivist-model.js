@@ -186,7 +186,7 @@ export function loadArchivistModel(quality = {}) {
     mesh.customDepthMaterial = depthMat;
 
     mesh.position.set(0, 0, 0);
-    mesh.rotation.y = Math.PI;
+    mesh.rotation.y = 0;
 
     const object = new THREE.Group();
     object.name = 'archivist-model-root';

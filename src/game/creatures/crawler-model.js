@@ -112,9 +112,9 @@ export function loadCrawlerModel(quality = {}) {
     mesh.receiveShadow = true;
     mesh.frustumCulled = false;
 
-    // Center on turntable: rotate 180 deg so head points forward (-Z)
-    mesh.position.set(0, 0.54, 1.25);
-    mesh.rotation.y = Math.PI;
+    // Center on turntable: head at -Z (facing forward), resting on floor at Y = 0
+    mesh.position.set(0, 0.54, -1.25);
+    mesh.rotation.y = 0;
 
     const object = new THREE.Group();
     object.name = 'crawler-model-root';
